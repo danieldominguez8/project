@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>PDF Form Filler</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .pdf-list, .field-list { margin: 10px 0; }
+        button { margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>PDF Form Filler</h1>
+    <div class="pdf-list">
+        <h3>Available PDFs</h3>
+        <ul id="pdfList"></ul>
+    </div>
+    <div class="field-list">
+        <h3>Fields</h3>
+        <div id="fields"></div>
+        <button onclick="fillPDF()" disabled id="fillBtn">Fill & Export</button>
+    </div>
+
+    <script>
+        let selectedPDF = null;
+
+        // Load PDFs on page load
+        window.onload = async () => {
+            const response = await fetch("/pdfs");
+            const data = await response.json();
+            displayPDFs(data.pdfs);
+        };
+
+        function displayPDFs(pdfs) {
+            const list = document.getElementById("pdfList");
+            list.innerHTML = "";
+            pdfs.forEach(pdf => {
+                const li = document.createElement("li");
+                const btn = document.createElement("button");
+                btn.textContent = pdf;
+                btn.onclick = () => loadFields(pdf);
+                li.appendChild(btn);
+                list.appendChild(li);
+            });
+        }
+
+        async function loadFields(pdf) {
+            selectedPDF = pdf;
+            const response = await fetch(`/fields/${pdf}`);
+            const data = await response.json();
+            if (data.error) return alert(data.error);
+            displayFields(data.fields);
+            document.getElementById("fillBtn").disabled = false;
+        }
+
+        function displayFields(fields) {
+            const container = document.getElementById("fields");
+            container.innerHTML = "";
+            fields.forEach(field => {
+                const div = document.createElement("div");
+                div.innerHTML = `<label>${field}: </label><input type="text" id="${field}">`;
+                container.appendChild(div);
+            });
+        }
+
+        async function fillPDF() {
+            const fields = {};
+            document.querySelectorAll("#fields input").forEach(input => {
+                fields[input.id] = input.value;
+            });
+            const response = await fetch("/fill", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ pdf: selectedPDF, fields })
+            });
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `filled_${selectedPDF}`;
+            a.click();
+        }
+    </script>
+</body>
+</html>
