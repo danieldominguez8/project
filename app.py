@@ -3,8 +3,9 @@ import os
 from io import BytesIO
 from pypdf import PdfReader, PdfWriter
 from pypdf.generic import DictionaryObject, ArrayObject, NameObject, BooleanObject
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
+import webbrowser
+import threading
+import time
 
 app = Flask(__name__, static_folder="static")
 FILES_FOLDER = "files"
@@ -16,15 +17,13 @@ def extract_fields(pdf_path):
             reader = PdfReader(file)
             fields = reader.get_fields()
             field_names = list(fields.keys()) if fields else []
-            print(f"Fields in {pdf_path}: {field_names}")
-            if not fields:
-                print(f"WARNING: No form fields found in {pdf_path}")
+            # Removed logging: print(f"Fields in {pdf_path}: {field_names}")
             return field_names
     except Exception as e:
-        print(f"Error extracting fields from {pdf_path}: {e}")
+        # Removed logging: print(f"Error extracting fields from {pdf_path}: {e}")
         return []
 
-# Load PDFs from files/ at startup
+# Load PDFs from the files folder at startup
 pdf_data = {}
 for filename in os.listdir(FILES_FOLDER):
     if filename.endswith(".pdf"):
@@ -33,7 +32,7 @@ for filename in os.listdir(FILES_FOLDER):
         pdf_data[filename] = {"path": file_path, "fields": fields}
 
 def fill_pdf_form(input_path, output_stream, field_values):
-    """Fill PDF form fields with provided values."""
+    """Fill PDF form fields with provided values, skipping signature fields."""
     try:
         reader = PdfReader(input_path)
         writer = PdfWriter()
@@ -42,35 +41,34 @@ def fill_pdf_form(input_path, output_stream, field_values):
         for page in reader.pages:
             writer.add_page(page)
         
-        # Debug trailer contents
-        print(f"Reader trailer keys: {list(reader.trailer.keys())}")
-        
-        # Check for /AcroForm in trailer
+        # Handle AcroForm: if it exists, use it; otherwise create a minimal one.
         if '/AcroForm' in reader.trailer:
-            print(f"AcroForm found: {reader.trailer['/AcroForm']}")
-            writer._root_object['/AcroForm'] = reader.trailer['/AcroForm'].get_object()
+            acroform = reader.trailer['/AcroForm']
+            try:
+                acroform = acroform.get_object()
+            except AttributeError:
+                pass
+            writer._root_object[NameObject('/AcroForm')] = acroform
         else:
-            # If fields detected but no /AcroForm in trailer, create a minimal one
             fields = reader.get_fields()
             if fields:
-                print("No /AcroForm in trailer, but fields detected - forcing creation")
                 acroform = DictionaryObject()
                 acroform.update({
                     NameObject('/Fields'): ArrayObject(),
                     NameObject('/NeedAppearances'): BooleanObject(True)
                 })
-                writer._root_object['/AcroForm'] = writer._add_object(acroform)
+                writer._root_object[NameObject('/AcroForm')] = acroform
             else:
-                print("No fields or /AcroForm - this shouldn’t happen here")
+                pass
         
-        # Prepare field values
-        cleaned_values = {k: str(v) for k, v in field_values.items() if k and v}
-        print(f"Filling form fields in {input_path} with: {cleaned_values}")
+        # Remove signature fields and empty values
+        cleaned_values = {
+            k: str(v)
+            for k, v in field_values.items()
+            if k and v and "signature" not in k.lower()
+        }
         
-        if not cleaned_values:
-            print("No values to fill, skipping update")
-        else:
-            # Update form field values for each page
+        if cleaned_values:
             for page in writer.pages:
                 writer.update_page_form_field_values(page, cleaned_values)
         
@@ -78,48 +76,15 @@ def fill_pdf_form(input_path, output_stream, field_values):
     except Exception as e:
         raise Exception(f"Form fill error: {str(e)}")
 
-def overlay_text(input_path, output_stream, field_values):
-    """Overlay text for non-fillable PDFs at specific coordinates."""
-    try:
-        reader = PdfReader(input_path)
-        writer = PdfWriter()
-        packet = BytesIO()
-        c = canvas.Canvas(packet, pagesize=letter)
-        
-        if "AccountHolderName" in field_values:
-            c.drawString(150, 700, field_values["AccountHolderName"])
-        if "Customer Signature" in field_values:
-            c.drawString(150, 650, field_values["Customer Signature"])
-        if "AccountHolderDateSigned" in field_values:
-            c.drawString(150, 600, field_values["AccountHolderDateSigned"])
-        
-        c.showPage()
-        c.save()
-        packet.seek(0)
-        overlay_pdf = PdfReader(packet)
-        
-        for page_num in range(len(reader.pages)):
-            page = reader.pages[page_num]
-            if page_num == 0:
-                page.merge_page(overlay_pdf.pages[0])
-            writer.add_page(page)
-        
-        print(f"Overlaying text in {input_path} with: {field_values}")
-        writer.write(output_stream)
-    except Exception as e:
-        raise Exception(f"Overlay error: {str(e)}")
-
 def fill_pdf(input_path, output_stream, field_values):
-    """Decide whether to fill form fields or overlay text."""
     reader = PdfReader(input_path)
     fields = reader.get_fields()
     has_fields = bool(fields)
-    print(f"PDF {input_path} has fields: {has_fields}")
+    
     if has_fields:
-        print(f"Detected fields: {list(fields.keys())}")
         fill_pdf_form(input_path, output_stream, field_values)
     else:
-        overlay_text(input_path, output_stream, field_values)
+        raise Exception("This PDF does not have fillable form fields.")
 
 @app.route("/")
 def serve_index():
@@ -154,8 +119,12 @@ def fill_and_export():
             mimetype="application/pdf"
         )
     except Exception as e:
-        print(f"Export error for {pdf_name}: {e}")
         return jsonify({"error": str(e)}), 500
 
+def open_browser():
+    time.sleep(1)
+    webbrowser.open("http://127.0.0.1:5000/")
+
 if __name__ == "__main__":
+    threading.Thread(target=open_browser).start()
     app.run(debug=True)
