@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>PDF Completer</title> <style>
+  <title>PDF Completer</title>
+  <style>
     body { font-family: Arial, sans-serif; margin: 0; line-height: 1.6; background-color: #f4f4f4; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; padding-top: 20px;}
     .container { max-width: 900px; width: 100%; padding: 20px; border: 1px solid #ccc; border-radius: 8px; background-color: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.1);}
     .pdf-list, .field-list-container { margin-bottom: 25px; padding: 20px; border: 1px solid #ddd; border-radius: 6px; background-color: #fdfdfd;}
@@ -14,51 +15,51 @@
     .message-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; display: block !important; }
 
     .field-group { margin-bottom: 18px; padding: 15px; border: 1px solid #e0e0e0; border-radius: 4px; background-color: #f9f9f9;}
-    /* Styling for grouped address fields */
-    .address-group-container { /* Inherits from field-group */
-        border-left: 3px solid #6c757d; /* Add a visual cue for the group */
-    }
-    .address-group-container .field-group-title {
-        display: block; margin-bottom: 10px; font-weight: bold; color: #333; font-size: 1.05em;
-    }
+    .address-group-container { border-left: 3px solid #6c757d; }
+    .address-group-container .field-group-title { display: block; margin-bottom: 10px; font-weight: bold; color: #333; font-size: 1.05em; }
     .address-group-container .field-sub-item { margin-bottom: 10px; padding-left: 10px; }
-    /* Hide the main label for sub-items if needed, or style differently */
     .address-group-container .field-sub-item > label { display: none; }
-
-
-    .field-group > label:not(.checkbox-label):not(.radio-label) { /* Exclude labels for checkbox/radio options */
-        display: block; margin-bottom: 8px; font-weight: bold; color: #333; font-size: 1.05em;
-    }
-    .field-group input[type="text"], .field-group input[type="password"], .field-group select {
-        width: calc(100% - 24px); padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 0.95em;
-    }
+    .field-group > label:not(.checkbox-label):not(.radio-label) { display: block; margin-bottom: 8px; font-weight: bold; color: #333; font-size: 1.05em; }
+    .field-group input[type="text"], .field-group input[type="password"], .field-group select { width: calc(100% - 24px); padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 0.95em; }
     .field-group .radio-group label, .field-group .checkbox-label { font-weight: normal; margin-left: 5px; color: #555; cursor: pointer; }
     .field-group .radio-option, .field-group .checkbox-option { margin-right: 18px; display: inline-flex; align-items: center; }
     .field-group input[type="radio"], .field-group input[type="checkbox"] { margin-right: 5px; }
     .relevant-pdfs-info { font-size: 0.85em; color: #666; margin-top: 6px; padding-left: 5px; border-left: 2px solid #007bff; }
     h1 { color: #333; text-align: center; margin-bottom:25px; }
     h3 { color: #0056b3; border-bottom: 2px solid #007bff; padding-bottom: 10px; margin-top:0;}
-    ul#pdfListElement { list-style-type: none; padding-left: 0; max-height: 200px; overflow-y: auto; margin-bottom: 15px;} /* Scrollable PDF list */
-    ul#pdfListElement li { margin-bottom: 8px; background-color: #f9f9f9; padding:8px; border-radius:3px; border:1px solid #eee; display: flex; align-items: center;}
-    ul#pdfListElement li input[type="checkbox"] { margin-right: 10px; transform: scale(1.1); }
-    #pdfFormFields { max-height: 450px; overflow-y: auto; padding-right: 10px;} /* Adjusted height */
+
+    /* --- Updated Styles for PDF List --- */
+    ul#pdfListElement {
+        list-style-type: none;
+        padding-left: 0;
+        margin-bottom: 15px;
+        display: grid; /* Use CSS Grid */
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); /* Responsive columns */
+        gap: 10px; /* Space between grid items */
+        /* Removed max-height and overflow-y */
+    }
+    ul#pdfListElement li {
+        margin-bottom: 0; /* Remove bottom margin as gap handles spacing */
+        background-color: #f9f9f9;
+        padding: 8px;
+        border-radius: 3px;
+        border: 1px solid #eee;
+        display: flex;
+        align-items: center;
+        word-break: break-word; /* Prevent long filenames overflowing */
+    }
+    ul#pdfListElement li input[type="checkbox"] { margin-right: 10px; transform: scale(1.1); flex-shrink: 0; /* Prevent checkbox from shrinking */ }
+    ul#pdfListElement li label { flex-grow: 1; /* Allow label to take remaining space */ }
+    /* --- End Updated Styles --- */
+
+    #pdfFormFields { max-height: 450px; overflow-y: auto; padding-right: 10px;}
     input:invalid { border-color: red; }
 
-    /* Styles for filter area */
     .load-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 15px; margin-top: 10px; }
-    .filter-option { padding: 5px 0; /* Adjusted padding */ }
+    .filter-option { padding: 5px 0; }
     .filter-option label { margin-left: 5px; cursor: pointer; color: #333; font-size: 0.9em;}
 
-    /* Styles for Password Prompt */
-    #passwordPrompt {
-        text-align: center;
-        padding: 30px;
-        border: 1px solid #ccc;
-        border-radius: 8px;
-        background-color: #f9f9f9;
-        max-width: 400px;
-        margin: 50px auto; /* Center prompt initially */
-    }
+    #passwordPrompt { text-align: center; padding: 30px; border: 1px solid #ccc; border-radius: 8px; background-color: #f9f9f9; max-width: 400px; margin: 50px auto; }
     #passwordPrompt label { display: block; margin-bottom: 10px; font-weight: bold; }
     #passwordPrompt input { padding: 10px; width: calc(100% - 24px); margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; }
     #passwordError { color: red; margin-top: 10px; min-height: 1em; }
@@ -76,7 +77,8 @@
   </div>
 
   <div class="container" id="appContainer" style="display: none;">
-    <h1>PDF Completer</h1> <div id="message"></div>
+    <h1>PDF Completer</h1>
+    <div id="message"></div>
 
     <div class="pdf-list">
       <h3>1. Select PDFs to Process</h3>
@@ -85,7 +87,8 @@
       <div class="load-controls">
           <button onclick="loadFieldsForSelectedPdfs()">Load Combined Fields</button>
           <div class="filter-option">
-              <input type="checkbox" id="filterToggleCheckbox" name="filterToggle" checked> <label for="filterToggleCheckbox">Show Only Common/Repeated Fields</label>
+              <input type="checkbox" id="filterToggleCheckbox" name="filterToggle" checked>
+              <label for="filterToggleCheckbox">Show Only Common/Repeated Fields</label>
           </div>
       </div>
     </div>
@@ -101,9 +104,7 @@
 
   <script>
     // --- Password Section ---
-    // IMPORTANT: This is NOT secure. The password is plain text in the script.
-    // It only provides a very basic barrier to entry.
-    const CORRECT_PASSWORD = "Supersecret!"; // *** UPDATED PASSWORD ***
+    const CORRECT_PASSWORD = "Supersecret!";
 
     function checkPassword() {
         const enteredPassword = document.getElementById('passwordInput').value;
@@ -111,27 +112,20 @@
         if (enteredPassword === CORRECT_PASSWORD) {
             document.getElementById('passwordPrompt').style.display = 'none';
             document.getElementById('appContainer').style.display = 'block';
-            // Initialize the app after successful login
             initializeApp();
         } else {
             passwordErrorDiv.textContent = "Incorrect password.";
-            document.getElementById('passwordInput').value = ""; // Clear incorrect password
+            document.getElementById('passwordInput').value = "";
         }
     }
-
-    // Add event listener for Enter key in password field
     document.getElementById('passwordInput').addEventListener('keypress', function(event) {
-        if (event.key === 'Enter') {
-            event.preventDefault(); // Prevent default form submission if it were in a form
-            checkPassword();
-        }
+        if (event.key === 'Enter') { event.preventDefault(); checkPassword(); }
     });
 
     // --- PDF Filler App Section ---
     let currentlySelectedPdfFiles = [];
     let allAvailablePdfs = [];
 
-    // Function to run after password is correct
     function initializeApp() {
         fetchAvailablePdfs();
         displayUserMessage("", false);
@@ -139,17 +133,13 @@
 
     function sanitizeForHtmlId(str) {
       if (!str) return "unknown_field_id";
-      // More robust sanitization for HTML IDs
       let sanitized = "field_id_" + str.replace(/[^a-zA-Z0-9_]/g, "_");
-      // Remove leading/trailing underscores and collapse multiple underscores
       sanitized = sanitized.replace(/^_+|_+$/g, '').replace(/_{2,}/g, '_');
-      // Prevent ID starting with a digit (though CSS selectors handle it, JS might not)
       if (/^[0-9]/.test(sanitized.substring('field_id_'.length))) {
           sanitized = 'field_id_n' + sanitized.substring('field_id_'.length);
       }
-      return sanitized || "field_id_fallback"; // Fallback if empty
+      return sanitized || "field_id_fallback";
     }
-
 
     function displayUserMessage(text, isError = true) {
         const messageDiv = document.getElementById("message");
@@ -185,18 +175,12 @@
     async function loadFieldsForSelectedPdfs() {
         updateSelectedPdfFiles();
         if (currentlySelectedPdfFiles.length === 0) { displayUserMessage("Please select PDF(s)."); return; }
-
         const filterToggle = document.getElementById('filterToggleCheckbox');
         const filterMode = filterToggle.checked ? 'common_only' : 'all';
-
         displayUserMessage(`Loading combined fields (Filter: ${filterMode})...`, false);
         document.getElementById("pdfFormFields").innerHTML = "<p style='text-align:center; padding:20px;'><i>Loading...</i></p>";
         try {
-            const response = await fetch("/combined_fields", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ pdfs: currentlySelectedPdfFiles, filter_mode: filterMode })
-            });
+            const response = await fetch("/combined_fields", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pdfs: currentlySelectedPdfFiles, filter_mode: filterMode }) });
             if (!response.ok) { const errData = await response.json(); throw new Error(errData.error || `HTTP error: ${response.status}`); }
             const data = await response.json();
             if (data.error) { displayUserMessage(data.error); document.getElementById("pdfFormFields").innerHTML = `<p style='color:red;'>Error: ${data.error}</p>`; return; }
@@ -335,7 +319,9 @@
         const formHasFields = document.getElementById("pdfFormFields").querySelector('.field-group, .address-group-container') !== null;
         document.getElementById("fillAndDownloadBtn").disabled = currentlySelectedPdfFiles.length === 0 || !formHasFields;
     }
-    
+
+    // Don't initialize app on load, wait for password check
+    // document.addEventListener("DOMContentLoaded", initializeApp);
   </script>
 </body>
 </html>
