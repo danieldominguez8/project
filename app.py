@@ -1,8 +1,8 @@
 from flask import Flask, send_file, jsonify, request
 import os
 from io import BytesIO
-import webbrowser
-import threading
+# import webbrowser # No longer needed for deployment
+# import threading # No longer needed for deployment
 import time
 import logging
 import re # For display name generation
@@ -118,7 +118,6 @@ def extract_fields_with_details(pdf_path):
                      widget_count = 1
                 else:
                     # Fallback: Assume 1 if it's a field pypdf returned and not clearly a non-widget parent
-                    # This might need refinement based on complex PDF structures
                     widget_count = 1 
                     logger.debug(f"Field '{field_name}' widget count determination fallback: assuming 1.")
 
@@ -146,19 +145,17 @@ def extract_fields_with_details(pdf_path):
                 elif field_type_raw == NameObject("/Btn"):
                     if ff_val & PDF_FIELD_FLAG_RADIO:
                         field_info["type"] = "radio"
-                        # Extract radio options (look in /Kids's /AP/N or sometimes /Opt)
                         radio_options = set()
-                        kids_for_opts = field_obj.get("/Kids") # Re-get kids specifically for options
+                        kids_for_opts = field_obj.get("/Kids") 
                         if kids_for_opts:
                             for kid_ref in kids_for_opts:
                                 kid_obj = kid_ref.get_object(); ap = kid_obj.get("/AP")
                                 if ap and isinstance(ap, DictionaryObject):
                                     n_dict = ap.get("/N")
                                     if isinstance(n_dict, DictionaryObject):
-                                        for evo in n_dict: # evo is a NameObject key like /Yes, /Option1
+                                        for evo in n_dict: 
                                             evo_str = str(evo)
                                             if evo_str.lower() != "/off": radio_options.add(evo_str)
-                        # Fallback check in /Opt
                         if not radio_options and field_obj.get("/Opt"):
                             opts_raw = field_obj.get("/Opt")
                             if opts_raw and isinstance(opts_raw, ArrayObject):
@@ -167,25 +164,25 @@ def extract_fields_with_details(pdf_path):
                         field_info["options"] = sorted(list(radio_options))
                         if not field_info["options"]: logger.warning(f"Radio '{field_name}' in {pdf_path} has no discernible options.")
                     else: # Checkbox
-                        field_info["type"] = "checkbox"; on_value = "/Yes" # Default 'On' state
+                        field_info["type"] = "checkbox"; on_value = "/Yes" 
                         ap = field_obj.get("/AP")
                         if ap and isinstance(ap, DictionaryObject):
                             n_dict = ap.get("/N")
                             if isinstance(n_dict, DictionaryObject):
                                 for key_obj in n_dict: 
                                     key_str = str(key_obj)
-                                    if key_str.lower() != "/off": on_value = key_str; break # Found the 'On' value
+                                    if key_str.lower() != "/off": on_value = key_str; break 
                         field_info["export_value"] = on_value
                 elif field_type_raw == NameObject("/Ch"): # Choice field
                     field_info["type"] = "choice"; opts = field_obj.get("/Opt")
                     choice_options = []
                     if opts and isinstance(opts, ArrayObject):
                         for opt_item in opts:
-                            if isinstance(opt_item, ArrayObject) and len(opt_item) == 2: # Pair [export, display]
+                            if isinstance(opt_item, ArrayObject) and len(opt_item) == 2: 
                                 val = str(opt_item[0]) if isinstance(opt_item[0],(TextStringObject,NameObject)) else str(opt_item[0])
                                 disp = str(opt_item[1]) if isinstance(opt_item[1],(TextStringObject,NameObject)) else str(opt_item[1])
                                 choice_options.append({"value": val, "display": disp})
-                            elif isinstance(opt_item, (TextStringObject,NameObject)): # Simple list
+                            elif isinstance(opt_item, (TextStringObject,NameObject)): 
                                 val=str(opt_item); choice_options.append({"value":val,"display":val})
                     field_info["options"] = choice_options
                 else: # Default to text if type is unknown or unhandled
@@ -194,10 +191,8 @@ def extract_fields_with_details(pdf_path):
                 
                 detailed_fields.append(field_info)
             except Exception as e_inner: 
-                # Log error but continue processing other fields in the PDF
                 logger.error(f"Error processing field '{str(field_name_fq)}' in {pdf_path}: {e_inner}", exc_info=False) 
     except Exception as e: 
-        # Log error for the entire PDF processing
         logger.error(f"Critical error extracting fields from {pdf_path}: {e}", exc_info=True)
     return detailed_fields
 
@@ -258,41 +253,28 @@ def get_combined_fields():
                 field_detail = field_detail_original.copy() # Work with a copy
                 field_name = field_detail["name"]
                 current_pdf_widget_count = field_detail.get("widget_count", 1) # Get count for this field in this PDF
-                # logger.debug(f"  Field: '{field_name}', Widget Count in this PDF: {current_pdf_widget_count}") # Verbose
 
                 if field_name not in combined_fields_lookup:
-                    # First time seeing this field name
                     field_detail["usedInPdfs"] = [pdf_name]
                     field_detail["max_widget_count_in_one_pdf"] = current_pdf_widget_count 
                     combined_fields_ordered_list.append(field_detail)
                     combined_fields_lookup[field_name] = field_detail
-                    # logger.debug(f"    -> New field added. Max Widgets: {current_pdf_widget_count}, Used In: {field_detail['usedInPdfs']}") # Verbose
                 else:
-                    # Field already seen, update its info
                     existing_field_entry = combined_fields_lookup[field_name]
-                    # Add current PDF if not already listed
                     if pdf_name not in existing_field_entry["usedInPdfs"]:
                         existing_field_entry["usedInPdfs"].append(pdf_name)
-                    # Update max widget count if current PDF has more instances
                     existing_max = existing_field_entry.get("max_widget_count_in_one_pdf", 0)
                     if current_pdf_widget_count > existing_max:
                         existing_field_entry["max_widget_count_in_one_pdf"] = current_pdf_widget_count
-                        # logger.debug(f"    -> Updating existing field '{field_name}'. New Max Widgets: {current_pdf_widget_count}") # Verbose
-                    # else:
-                         # logger.debug(f"    -> Updating existing field '{field_name}'. Max Widgets remains: {existing_max}") # Verbose
-                    # logger.debug(f"    -> Used In updated to: {existing_field_entry['usedInPdfs']}") # Verbose
-                    # Merge radio options if applicable
                     if field_detail["type"] == "radio" and existing_field_entry["type"] == "radio":
                         opts = set(existing_field_entry.get("options",[])); new_opts=set(field_detail.get("options",[]))
                         merged_options = sorted(list(opts.union(new_opts)))
                         if merged_options != existing_field_entry.get("options",[]):
                              existing_field_entry["options"] = merged_options
-                             # logger.debug(f"    -> Merged radio options for '{field_name}'.") # Verbose
-
         else:
             logger.warning(f"Requested PDF '{pdf_name}' not found in preloaded data during combined_fields.")
 
-    # --- Apply Filtering Based on filter_mode (CORRECTED LOGIC) ---
+    # --- Apply Filtering Based on filter_mode (Corrected Logic) ---
     final_fields_to_display = []
     log_msg_prefix = f"PDFs: {len(selected_pdf_names)}, Filter Mode: {filter_mode}"
 
@@ -300,30 +282,19 @@ def get_combined_fields():
         # Apply the "common/repeated" filter REGARDLESS of how many PDFs are selected.
         logger.info("Applying filter: (Common across >1 file) OR (Repeated Text/Choice in single file).")
         for field_entry in combined_fields_ordered_list:
-            # Condition 1: Is the field common across multiple selected files?
-            # This will be FALSE if only one PDF is selected.
             is_common_across_files = len(field_entry.get("usedInPdfs", [])) > 1
-            
-            # Condition 2: Does the field appear multiple times visually (widget_count > 1) 
-            # AND is it a type where repetition implies multiple data entries (e.g., text/choice)?
             field_type = field_entry.get("type", "text")
             widget_count = field_entry.get("max_widget_count_in_one_pdf", 0)
             is_repeated_data_entry_type = (widget_count > 1) and (field_type in ["text", "choice"]) 
             
-            # Keep the field if EITHER condition is true
             if is_common_across_files or is_repeated_data_entry_type:
                 final_fields_to_display.append(field_entry)
-            # Optional logging for skipped fields:
-            # else:
-            #     logger.debug(f"Skipping field '{field_entry['name']}' (common: {is_common_across_files}, repeated_data_type: {is_repeated_data_entry_type}, type: {field_type}, max_widgets: {widget_count})")
     else:
         # Default: Show all unique fields from the selection (filter_mode='all')
         final_fields_to_display = combined_fields_ordered_list
         logger.info("Applying filter: None ('Show All' selected).")
 
-
-    # --- REMOVED Tiered Sorting ---
-    # The final_fields_to_display list now retains the order based on when fields were first encountered.
+    # --- The list retains the order fields were first encountered ---
     
     logger.info(f"{log_msg_prefix}. Returning {len(final_fields_to_display)} fields.")
 
@@ -339,19 +310,18 @@ def fill_and_export_pdf():
         return jsonify({"error": f"PDF file '{pdf_name}' not found or not specified."}), 404
 
     pdf_info = pdf_data[pdf_name]; input_pdf_path = pdf_info["path"]
-    # Create a lookup for this specific PDF's field details
     pdf_specific_details = {f["name"]: f for f in pdf_info["fields_details"]}
     output_stream = BytesIO()
 
     try:
         reader = PdfReader(input_pdf_path); writer = PdfWriter()
-        writer.clone_document_from_reader(reader) # Copy structure and content
+        writer.clone_document_from_reader(reader) 
 
         # --- Robust AcroForm Handling ---
         acro_form_obj = writer._root_object.get(NameObject("/AcroForm"))
         acro_form_dict = None 
         if acro_form_obj is None:
-            logger.warning(f"/AcroForm missing in {pdf_name}. Creating empty. Fields might not exist."); acro_form_dict = DictionaryObject()
+            logger.warning(f"/AcroForm missing in {pdf_name}. Creating empty."); acro_form_dict = DictionaryObject()
             writer._root_object[NameObject("/AcroForm")] = acro_form_dict
         elif isinstance(acro_form_obj, IndirectObject): 
             resolved_obj = acro_form_obj.get_object()
@@ -361,45 +331,35 @@ def fill_and_export_pdf():
         else: logger.error(f"Unexpected /AcroForm type in {pdf_name}: {type(acro_form_obj)}. Creating empty."); acro_form_dict = DictionaryObject(); writer._root_object[NameObject("/AcroForm")] = acro_form_dict
         
         if acro_form_dict:
-            # Ensure essential keys exist and NeedAppearances is set
             acro_form_dict.setdefault(NameObject("/Fields"), ArrayObject())
             acro_form_dict[NameObject("/NeedAppearances")] = BooleanObject(True)
-            if NameObject("/DR") not in acro_form_dict: logger.warning(f"/DR missing in AcroForm for {pdf_name}. Appearance generation may fail.")
+            if NameObject("/DR") not in acro_form_dict: logger.warning(f"/DR missing in AcroForm for {pdf_name}.")
         else: 
-            # If we couldn't get/create a valid dict, filling is impossible
-            logger.error(f"Failed to obtain AcroForm dictionary for {pdf_name}. Cannot fill fields.")
-            return jsonify({"error": f"Internal error processing AcroForm for {pdf_name}"}), 500
+            logger.error(f"Failed to obtain AcroForm dictionary for {pdf_name}."); return jsonify({"error": f"Internal error processing AcroForm for {pdf_name}"}), 500
         # --- End AcroForm Handling ---
 
         # --- Prepare values to set for this specific PDF ---
         values_to_set = {}
         for name, val_user in field_values_from_user.items():
-            if name in pdf_specific_details: # Only consider fields present in this PDF
+            if name in pdf_specific_details: 
                 meta = pdf_specific_details[name]; f_type = meta["type"]
-                # Skip signature/date fields (redundant if filtered earlier, but safe)
                 if "signature" in name.lower() or "datesigned" in name.lower(): continue 
                 
-                # Convert user input to appropriate pypdf object type
                 if f_type == "checkbox":
-                    on_val = meta.get("export_value", "/Yes") # Use stored 'On' value
-                    values_to_set[name] = NameObject(on_val) if val_user else NameObject("/Off") # Use NameObject for states
+                    on_val = meta.get("export_value", "/Yes") 
+                    values_to_set[name] = NameObject(on_val) if val_user else NameObject("/Off") 
                 elif f_type == "radio":
-                    # Value should be the export value string from the selected radio button
-                    if val_user: # Check if user selected an option
-                        # Use NameObject if it looks like a PDF name (starts with /), else TextStringObject
+                    if val_user: 
                         values_to_set[name] = NameObject(str(val_user)) if str(val_user).startswith("/") else TextStringObject(str(val_user))
-                else: # Includes text, choice - set as string
+                else: # Includes text, choice
                     values_to_set[name] = str(val_user) 
         
         # --- Apply the prepared values ---
         if values_to_set:
-            # Update fields on all pages where they might appear
             for page_num in range(len(writer.pages)):
                 try:
-                    # Update values; /NeedAppearances=True should prompt viewer to regenerate
                     writer.update_page_form_field_values(writer.pages[page_num], values_to_set)
                 except Exception as page_update_err:
-                    # Log error for specific page update but continue if possible
                     logger.error(f"Error updating fields on page {page_num} for {pdf_name}: {page_update_err}", exc_info=False)
             logger.info(f"Applied {len(values_to_set)} field values to {pdf_name}.")
 
@@ -409,18 +369,16 @@ def fill_and_export_pdf():
                     if page.get("/Annots"):
                         for annot_ref in page["/Annots"]:
                             annot = annot_ref.get_object()
-                            # Check if it's the target field and has a field type (is a form field annotation)
                             if annot.get("/T") == NameObject("AccountHolderName") and annot.get("/FT"):
-                                # Set Default Appearance string (e.g., Helvetica 10pt black)
                                 annot[NameObject("/DA")] = TextStringObject("/Helv 10 Tf 0 0 0 rg") 
-                                annot.setdefault(NameObject("/MK"), DictionaryObject()) # Ensure MK dict exists
+                                annot.setdefault(NameObject("/MK"), DictionaryObject()) 
                                 logger.debug(f"Applied specific /DA style to AccountHolderName on a page in {pdf_name}")
         else: 
             logger.info(f"No relevant field values provided by user to fill for {pdf_name}.")
 
         # --- Write the modified PDF to the output stream ---
         writer.write(output_stream)
-        output_stream.seek(0) # Rewind stream to the beginning
+        output_stream.seek(0) 
         logger.info(f"Successfully generated filled PDF stream for: {pdf_name}")
         
         # --- Send the file back to the browser ---
@@ -431,27 +389,10 @@ def fill_and_export_pdf():
             mimetype="application/pdf"
         )
     except Exception as e:
-        # Catch-all for errors during the filling process
         logger.error(f"Critical error during filling process for PDF {input_pdf_path}: {str(e)}", exc_info=True)
         return jsonify({"error": f"Server error while filling PDF '{pdf_name}': {str(e)}"}), 500
 
-def open_browser():
-    """Opens the web browser to the application's URL after a short delay."""
-    try: 
-        time.sleep(1.5) # Allow Flask server time to start
-        webbrowser.open("http://127.0.0.1:5001/")
-    except Exception as e: 
-        logger.error(f"Could not automatically open web browser: {e}")
-
-if __name__ == "__main__":
-    # Check if the essential 'files' directory exists and has content
-    if not os.path.exists(FILES_FOLDER) or not os.listdir(FILES_FOLDER):
-        logger.warning(f"The '{FILES_FOLDER}' directory is missing or empty. Please create it and add PDF forms for the application to function correctly.")
-    
-    # Start the browser opening in a separate thread (daemon=True means it exits when main app exits)
-    threading.Thread(target=open_browser, daemon=True).start()
-    
-    # Run the Flask development server
-    # debug=True enables auto-reloading on code changes and provides detailed error pages
-    # use_reloader=False is often recommended when using threading to avoid potential issues
-    app.run(host="127.0.0.1", port=5001, debug=True, use_reloader=False)
+# Note: The development server block (if __name__ == "__main__":...) is removed for deployment.
+# Use a WSGI server like Waitress or Gunicorn to run this application in production.
+# Example using Waitress: waitress-serve --host 0.0.0.0 --port $PORT app:app
+# Example using Gunicorn: gunicorn --workers 3 --bind 0.0.0.0:$PORT app:app
