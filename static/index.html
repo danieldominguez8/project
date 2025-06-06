@@ -378,35 +378,32 @@
       <div class="scrollable-content">
         <div class="pdf-list">
           <h3>1. Select PDFs to Process</h3>
-          <div class="action-buttons" style="display: flex; justify-content: space-between; margin-bottom: 15px;">
-            <button onclick="loadFieldsForSelectedPdfs()">Load Fields</button>
-            <button onclick="fillAndDownloadPdfs()" disabled id="fillAndDownloadBtn">Fill & Export Selected PDFs</button>
-          </div>
-          <ul id="pdfListElement"></ul>
-          <div class="load-controls">
-            <div class="filter-option">
+          <ul id="pdfListElement"></ul>      <div class="load-controls">
+          <button onclick="loadFieldsForSelectedPdfs()">Load Combined Fields</button>
+          <button id="fillAndDownloadBtn" onclick="fillAndDownloadPdfs()" disabled>Fill and Download PDFs</button>
+          <div class="filter-option">
               <input type="checkbox" id="filterToggleCheckbox" name="filterToggle" checked>
               <label for="filterToggleCheckbox">Show Only Common/Repeated Fields</label>
-            </div>
-            <div class="filter-option">
-              <label for="numAccountHolders">Account Holders:</label>
-              <select id="numAccountHolders" name="numAccountHolders">
-                <option value="1" selected>1</option>
-                <option value="2">2</option>
-                <option value="3">3</option>
-                <option value="4">4</option>
-              </select>
-            </div>
-            <div class="filter-option">
-              <label for="numFinancialProfessionals">Financial Professionals:</label>
-              <select id="numFinancialProfessionals" name="numFinancialProfessionals">
-                <option value="1" selected>1</option>
-                <option value="2">2</option>
-                <option value="3">3</option>
-                <option value="4">4</option>
-              </select>
-            </div>
           </div>
+          <div class="filter-option">
+            <label for="numAccountHolders">Number of Account Holders:</label>
+            <select id="numAccountHolders" name="numAccountHolders">
+              <option value="1" selected>1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+            </select>
+          </div>
+          <div class="filter-option">
+            <label for="numFinancialProfessionals">Number of Financial Professionals:</label>
+            <select id="numFinancialProfessionals" name="numFinancialProfessionals">
+              <option value="1" selected>1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+            </select>
+          </div>
+      </div>
         </div>
 
         <div class="field-list-container">
@@ -414,10 +411,6 @@
           <form id="pdfFormFields">
             <p>Select PDFs and click "Load Fields" to see form inputs here.</p>
           </form>
-          <!-- Export button moved to top -->
-          <div class="form-actions">
-            <!-- Empty for styling -->
-          </div>
         </div>
       </div>
     </div>
@@ -462,6 +455,7 @@
         }
       });
       
+      // Add event listeners for account holder and financial professional changes
       document.getElementById('numAccountHolders').addEventListener('change', function() {
         if (currentlySelectedPdfFiles.length > 0) {
           loadFieldsForSelectedPdfs();
@@ -538,16 +532,6 @@
         label.textContent = pdfName;
         label.style.cursor = "pointer";
         
-        // Special handling for CM201.pdf - now compatible with Account Registration
-        if (pdfName === "CM201.pdf") {
-          const infoSpan = document.createElement("span");
-          infoSpan.textContent = " (Compatible with Account Registration)";
-          infoSpan.style.color = "#28a745";
-          infoSpan.style.fontSize = "0.8em";
-          infoSpan.style.fontStyle = "italic";
-          label.appendChild(infoSpan);
-        }
-        
         li.appendChild(checkbox);
         li.appendChild(label);
         listElement.appendChild(li);
@@ -566,12 +550,6 @@
       document.getElementById("fillAndDownloadBtn").disabled = 
         currentlySelectedPdfFiles.length === 0 || !formHasFields;
       
-      // Handle CM201.pdf specially to make it compatible with account registration  
-      if (currentlySelectedPdfFiles.includes("CM201.pdf")) {
-        // This makes CM201 compatible by modifying its fields during processing
-        console.log("CM201.pdf is selected - using compatibility mode");
-      }
-      
       // No auto-loading of fields when selecting PDFs - user must click "Load Fields" button
     }
     
@@ -588,7 +566,32 @@
       const numAccountHolders = document.getElementById('numAccountHolders').value;
       const numFinancialProfessionals = document.getElementById('numFinancialProfessionals').value;
       
-      displayUserMessage(`Loading fields... (Filter: ${filterMode}, AcctHolders: ${numAccountHolders}, FinPros: ${numFinancialProfessionals})`, false);
+      // Create detailed status message for exclusion logic
+      let statusDetails = `Filter: ${filterMode}`;
+      
+      // Show what account holder fields will be excluded
+      if (numAccountHolders == 1) {
+        statusDetails += `, Excluding: Secondary/Tertiary/Quaternary Account Holders`;
+      } else if (numAccountHolders == 2) {
+        statusDetails += `, Excluding: Tertiary/Quaternary Account Holders`;
+      } else if (numAccountHolders == 3) {
+        statusDetails += `, Excluding: Quaternary Account Holders`;
+      } else {
+        statusDetails += `, Including: All Account Holder fields`;
+      }
+      
+      // Show what financial professional fields will be excluded
+      if (numFinancialProfessionals == 1) {
+        statusDetails += `, Excluding: Secondary/Tertiary/Quaternary Financial Professionals`;
+      } else if (numFinancialProfessionals == 2) {
+        statusDetails += `, Excluding: Tertiary/Quaternary Financial Professionals`;
+      } else if (numFinancialProfessionals == 3) {
+        statusDetails += `, Excluding: Quaternary Financial Professionals`;
+      } else {
+        statusDetails += `, Including: All Financial Professional fields`;
+      }
+      
+      displayUserMessage(`Loading fields... (${statusDetails})`, false);
       document.getElementById("pdfFormFields").innerHTML = "<p style='text-align:center; padding:20px;'><i>Loading...</i></p>";
       
       try {
@@ -977,17 +980,6 @@
         
         const fieldValues = getFormData();
         
-        // Special handling for CM201.pdf to make it compatible with account registration fields
-        const hasCM201 = currentlySelectedPdfFiles.includes("CM201.pdf");
-        const hasAccountRegistrationFields = Object.keys(fieldValues).some(fieldName => 
-            fieldName.toLowerCase().includes("accountregistration") || 
-            fieldName.toLowerCase().includes("account_registration"));
-            
-        if (hasCM201 && hasAccountRegistrationFields) {
-            console.log("Applying compatibility fixes for CM201.pdf with account registration");
-            // Apply any needed transformations to field values for CM201 compatibility
-        }
-        
         const totalFiles = currentlySelectedPdfFiles.length;
         
         displayUserMessage(`Processing ${totalFiles} PDF(s)...`, false);
@@ -997,53 +989,82 @@
         let errorCount = 0;
         const progressMsg = document.getElementById("message");
         
+        // Batch process PDFs with better error handling and resource management
+        const downloadPromises = [];
+        
         for (let i = 0; i < currentlySelectedPdfFiles.length; i++) {
             const pdfFileName = currentlySelectedPdfFiles[i];
             
-            try {
-                // Update progress message
-                progressMsg.textContent = `Processing ${i+1}/${totalFiles}: ${pdfFileName}`;
-                
-                const response = await fetch("/fill", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        pdf_filename: pdfFileName,
-                        field_values: fieldValues
-                    })
-                });
-                
-                if (!response.ok) {
-                    const errData = await response.json();
-                    throw new Error(errData.error || `Failed ${pdfFileName}. Status: ${response.status}`);
+            const downloadPromise = (async () => {
+                try {
+                    // Update progress message
+                    progressMsg.textContent = `Processing ${i+1}/${totalFiles}: ${pdfFileName}`;
+                    
+                    const response = await fetch("/fill", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            pdf_filename: pdfFileName,
+                            field_values: fieldValues
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        const errData = await response.json();
+                        throw new Error(errData.error || `Failed ${pdfFileName}. Status: ${response.status}`);
+                    }
+                    
+                    const blob = await response.blob();
+                    if (blob.type !== "application/pdf") {
+                        throw new Error(`Not a PDF for ${pdfFileName}. Type: ${blob.type}.`);
+                    }
+                    
+                    // Create download with better timing to avoid browser blocking
+                    return new Promise((resolve) => {
+                        setTimeout(() => {
+                            try {
+                                const url = window.URL.createObjectURL(blob);
+                                const a = document.createElement("a");
+                                a.style.display = 'none';
+                                a.href = url;
+                                a.download = `filled_${pdfFileName}`;
+                                document.body.appendChild(a);
+                                a.click();
+                                
+                                // Clean up resources after a delay
+                                setTimeout(() => {
+                                    window.URL.revokeObjectURL(url);
+                                    a.remove();
+                                }, 1000);
+                                
+                                resolve({ success: true, fileName: pdfFileName });
+                            } catch (downloadError) {
+                                resolve({ success: false, fileName: pdfFileName, error: downloadError.message });
+                            }
+                        }, i * 500); // Stagger downloads by 500ms each
+                    });
+                    
+                } catch (error) {
+                    console.error(`Error for ${pdfFileName}:`, error);
+                    return { success: false, fileName: pdfFileName, error: error.message };
                 }
-                
-                const blob = await response.blob();
-                if (blob.type !== "application/pdf") {
-                    throw new Error(`Not a PDF for ${pdfFileName}. Type: ${blob.type}.`);
-                }
-                
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.style.display = 'none';
-                a.href = url;
-                a.download = `filled_${pdfFileName}`;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                a.remove();
-                
-                successCount++;
-                
-                // Small delay between downloads
-                await new Promise(resolve => setTimeout(resolve, 300));
-            } catch (error) {
-                console.error(`Error for ${pdfFileName}:`, error);
-                errorCount++;
-                // Continue with next PDF instead of stopping
-                await new Promise(resolve => setTimeout(resolve, 300));
-            }
+            })();
+            
+            downloadPromises.push(downloadPromise);
         }
+        
+        // Wait for all downloads to complete
+        const results = await Promise.all(downloadPromises);
+        
+        // Count successes and failures
+        results.forEach(result => {
+            if (result.success) {
+                successCount++;
+            } else {
+                errorCount++;
+                console.error(`Failed to process ${result.fileName}: ${result.error}`);
+            }
+        });
         
         // Final status message
         if (errorCount > 0 && successCount > 0) {
