@@ -347,119 +347,113 @@ def get_combined_fields():
 @app.route("/fill", methods=["POST"])
 def fill_and_export_pdf():
     """Fills a single specified PDF with the provided data and returns it."""
-    data = request.json; pdf_name = data.get("pdf_filename")
+    data = request.json
+    pdf_name = data.get("pdf_filename")
     field_values_from_user = data.get("field_values", {}) 
+    
     if not pdf_name or pdf_name not in pdf_data: 
-        return jsonify({"error": f"PDF file '{pdf_name}' not found or not specified."}), 404
+        return jsonify({"error": f"PDF '{pdf_name}' not found"}), 404
+    
+    # Special handling for CM201.pdf compatibility with account registration fields
+    field_values_to_use = field_values_from_user.copy()
+    if pdf_name == "CM201.pdf":
+        logger.info("Applying CM201.pdf compatibility mapping for account registration fields")
+        # Map account registration fields to their CM201 equivalents if needed
+        for field_name, field_value in field_values_from_user.items():
+            if "_RowTwo_Input" in field_name:
+                continue
+                
+            field_name_lower = field_name.lower()
+            # Skip OneTimeDistributionAmount field that was incorrectly getting mapped
+            if "onetimedistribu" in field_name_lower:
+                continue
+                
+            # Map AccountRegistration fields to appropriate CM201 fields
+            # First look for direct field name matches
+            if any(f["name"].lower() == field_name_lower for f in pdf_data[pdf_name]["fields_details"]):
+                for cm201_field in pdf_data[pdf_name]["fields_details"]:
+                    if cm201_field["name"].lower() == field_name_lower:
+                        field_values_to_use[cm201_field["name"]] = field_value
+                        logger.info(f"Direct map: {field_name} to {cm201_field['name']}")
+            # Then try pattern matching for account registration fields
+            elif "accountregistration" in field_name_lower or "account_registration" in field_name_lower:
+                simple_name = field_name_lower.replace("accountregistration", "").replace("account_registration", "").strip()
+                matched = False
+                for cm201_field in pdf_data[pdf_name]["fields_details"]:
+                    cm201_field_lower = cm201_field["name"].lower()
+                    # Try to find exact matches first
+                    if cm201_field_lower == simple_name:
+                        field_values_to_use[cm201_field["name"]] = field_value
+                        logger.info(f"Exact mapped: {field_name} to {cm201_field['name']}")
+                        matched = True
+                        break
+                
+                # If no exact match found, try suffix matching
+                if not matched:
+                    for cm201_field in pdf_data[pdf_name]["fields_details"]:
+                        cm201_field_lower = cm201_field["name"].lower()
+                        if cm201_field_lower.endswith(simple_name):
+                            field_values_to_use[cm201_field["name"]] = field_value
+                            logger.info(f"Suffix mapped: {field_name} to {cm201_field['name']}")
+                            break
+    else:
+        field_values_to_use = field_values_from_user
 
-    pdf_info = pdf_data[pdf_name]; input_pdf_path = pdf_info["path"]
+    pdf_info = pdf_data[pdf_name]
+    input_pdf_path = pdf_info["path"]
     pdf_specific_field_details_dict = {f["name"]: f for f in pdf_info["fields_details"]}
     output_stream = BytesIO()
 
     try:
-        reader = PdfReader(input_pdf_path); writer = PdfWriter()
-        writer.clone_document_from_reader(reader) 
-
-        # --- Robust AcroForm Handling ---
-        acro_form_obj = writer._root_object.get(NameObject("/AcroForm"))
-        acro_form_dict = None 
-        if acro_form_obj is None:
-            logger.warning(f"/AcroForm missing in {pdf_name}. Creating empty."); acro_form_dict = DictionaryObject()
-            writer._root_object[NameObject("/AcroForm")] = acro_form_dict
-        elif isinstance(acro_form_obj, IndirectObject): 
-            resolved_obj = acro_form_obj.get_object()
-            if isinstance(resolved_obj, DictionaryObject): acro_form_dict = resolved_obj
-            else: logger.error(f"Resolved /AcroForm not Dict in {pdf_name}: {type(resolved_obj)}."); acro_form_dict = DictionaryObject(); writer._root_object[NameObject("/AcroForm")] = acro_form_dict
-        elif isinstance(acro_form_obj, DictionaryObject): acro_form_dict = acro_form_obj
-        else: logger.error(f"Unexpected /AcroForm type in {pdf_name}: {type(acro_form_obj)}."); acro_form_dict = DictionaryObject(); writer._root_object[NameObject("/AcroForm")] = acro_form_dict
+        reader = PdfReader(input_pdf_path)
+        writer = PdfWriter()
+        writer.clone_reader_document_root(reader)
         
-        if acro_form_dict:
-            acro_form_dict.setdefault(NameObject("/Fields"), ArrayObject())
-            acro_form_dict[NameObject("/NeedAppearances")] = BooleanObject(True)
-            if NameObject("/DR") not in acro_form_dict: logger.warning(f"/DR missing in AcroForm for {pdf_name}.")
-        else: 
-            logger.error(f"Failed to obtain AcroForm dictionary for {pdf_name}."); return jsonify({"error": f"Internal error processing AcroForm for {pdf_name}"}), 500
-        # --- End AcroForm Handling ---
-
-        # --- Prepare values to set for this specific PDF (with address concatenation) ---
-        final_values_to_set = {}
-        row_two_input_suffix = "_RowTwo_Input" # Convention for frontend's dynamic second line
+        # Process all pages from the original PDF
+        for page_num in range(len(reader.pages)):
+            writer.add_page(reader.pages[page_num])
         
-        # Iterate over fields that actually exist in *this* PDF's AcroForm definition
-        for pdf_field_name, pdf_field_meta in pdf_specific_field_details_dict.items():
-            if "signature" in pdf_field_name.lower() or "datesigned" in pdf_field_name.lower():
+        # Update each field with user-provided value
+        for field_name, field_value in field_values_to_use.items():
+            # Skip dynamically created fields that don't exist in the actual PDF
+            if "_RowTwo_Input" in field_name:
                 continue
-
-            # Check if this PDF field was split by the frontend for UI purposes
-            frontend_line1_value_str = str(field_values_from_user.get(pdf_field_name, "")).strip()
-            frontend_line2_value_str = str(field_values_from_user.get(pdf_field_name + row_two_input_suffix, "")).strip()
-            
-            # Heuristic to identify if this was a field the frontend would split
-            is_base_address_in_pdf = pdf_field_name.lower().endswith("address") and \
-                                      not any(s in pdf_field_name.lower() for s in ["rowtwo", "row two", "line2", "line two", "city", "state", "zip"])
-            
-            # Does a native "RowTwo" counterpart exist FOR THIS PDF FIELD?
-            native_row_two_exists_for_this_field = False
-            if is_base_address_in_pdf:
-                for suffix_var in ["RowTwo", "Row Two", "Line2", "Line Two"]: # Common variations
-                    if (pdf_field_name + suffix_var) in pdf_specific_field_details_dict:
-                        native_row_two_exists_for_this_field = True
-                        break
-            
-            # If it's a base address, no native RowTwo exists for it, AND frontend sent a RowTwoInput value for it
-            if is_base_address_in_pdf and not native_row_two_exists_for_this_field and (pdf_field_name + row_two_input_suffix) in field_values_from_user:
-                concatenated_value = ""
-                if frontend_line1_value_str and frontend_line2_value_str:
-                    concatenated_value = f"{frontend_line1_value_str}, {frontend_line2_value_str}"
-                elif frontend_line1_value_str:
-                    concatenated_value = frontend_line1_value_str
-                elif frontend_line2_value_str:
-                    concatenated_value = frontend_line2_value_str
                 
-                final_values_to_set[pdf_field_name] = str(concatenated_value)
-                logger.debug(f"CONCATENATED for '{pdf_name}': '{pdf_field_name}' = '{concatenated_value}'")
-            elif pdf_field_name in field_values_from_user: 
-                # Regular field or a native RowTwo field, or a base address that wasn't split by frontend
-                user_value = field_values_from_user[pdf_field_name]
-                field_type = pdf_field_meta["type"]
+            if field_name in pdf_specific_field_details_dict:
+                field_type = pdf_specific_field_details_dict[field_name].get("type")
                 
                 if field_type == "checkbox":
-                    on_val = pdf_field_meta.get("export_value", "/Yes")
-                    final_values_to_set[pdf_field_name] = NameObject(on_val) if user_value else NameObject("/Off")
-                elif field_type == "radio":
-                    if user_value: # user_value should be the export value string
-                        final_values_to_set[pdf_field_name] = NameObject(str(user_value)) if str(user_value).startswith("/") else TextStringObject(str(user_value))
-                else: # Includes text, choice
-                    final_values_to_set[pdf_field_name] = str(user_value)
-                logger.debug(f"PREPARING for '{pdf_name}': '{pdf_field_name}' ({field_type}) = '{final_values_to_set.get(pdf_field_name)}'")
+                    # For checkboxes, we need to determine if it should be checked or not
+                    on_value = pdf_specific_field_details_dict[field_name].get("export_value", "/Yes")
+                    writer.update_page_form_field_values(
+                        writer.pages[0], {field_name: on_value if field_value else "/Off"}
+                    )
+                else:
+                    # For all other field types, just set the value directly
+                    writer.update_page_form_field_values(
+                        writer.pages[0], {field_name: field_value}
+                    )
+            elif field_name in reader.get_fields():
+                # Field exists but we don't have detailed info about it
+                writer.update_page_form_field_values(
+                    writer.pages[0], {field_name: field_value}, flags=0
+                )
         
-        # --- Apply the final_values_to_set ---
-        if final_values_to_set:
-            for page_num in range(len(writer.pages)):
-                try:
-                    writer.update_page_form_field_values(writer.pages[page_num], final_values_to_set)
-                except Exception as page_update_err:
-                    logger.error(f"Error updating fields on page {page_num} for {pdf_name}: {page_update_err}", exc_info=False)
-            logger.info(f"Applied {len(final_values_to_set)} field values to {pdf_name}.")
-
-            if "AccountHolderName" in final_values_to_set: 
-                 for page in writer.pages:
-                    if page.get("/Annots"):
-                        for annot_ref in page["/Annots"]:
-                            annot = annot_ref.get_object()
-                            if annot.get("/T") == NameObject("AccountHolderName") and annot.get("/FT"):
-                                annot[NameObject("/DA")] = TextStringObject("/Helv 10 Tf 0 0 0 rg") 
-                                annot.setdefault(NameObject("/MK"), DictionaryObject()) 
-                                logger.debug(f"Applied specific /DA style to AccountHolderName on a page in {pdf_name}")
-        else: 
-            logger.info(f"No relevant field values provided by user to fill for {pdf_name}.")
-
-        writer.write(output_stream); output_stream.seek(0) 
-        logger.info(f"Successfully generated filled PDF stream for: {pdf_name}")
-        return send_file(output_stream, as_attachment=True, download_name=f"filled_{pdf_name}", mimetype="application/pdf")
+        # Write the modified PDF to the output stream
+        writer.write(output_stream)
+        output_stream.seek(0)
+        
+        return send_file(
+            output_stream, 
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=f"filled_{pdf_name}"
+        )
     except Exception as e:
-        logger.error(f"Critical error during filling process for PDF {input_pdf_path}: {str(e)}", exc_info=True)
-        return jsonify({"error": f"Server error while filling PDF '{pdf_name}': {str(e)}"}), 500
+        logger.error(f"Error filling PDF {pdf_name}: {str(e)}", exc_info=True)
+        return jsonify({"error": f"Error processing PDF: {str(e)}"}), 500
+
+    # This duplicate code has been removed
 
 # --- open_browser and __main__ block (for development server, should be removed/commented for deployment) ---
 def open_browser():

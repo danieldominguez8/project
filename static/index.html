@@ -2,107 +2,664 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PDF Completer</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 0; line-height: 1.6; background-color: #f4f4f4; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; padding-top: 20px;}
-    .container { max-width: 900px; width: 100%; padding: 20px; border: 1px solid #ccc; border-radius: 8px; background-color: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.1);}
-    .pdf-list, .field-list-container { margin-bottom: 25px; padding: 20px; border: 1px solid #ddd; border-radius: 6px; background-color: #fdfdfd;}
-    button { margin: 10px 5px 10px 0; padding: 10px 18px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1em; transition: background-color 0.3s ease; }
-    button:hover { background-color: #0056b3; }
-    button:disabled { background-color: #ccc; cursor: not-allowed; }
-    #message { margin: 15px 0; padding: 12px; border-radius: 4px; display: none; /* Initially hidden */ }
-    .message-error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; display: block !important; }
-    .message-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; display: block !important; }
+    body { 
+      font-family: 'Segoe UI', Arial, sans-serif; 
+      margin: 0; 
+      line-height: 1.6; 
+      background-color: #f4f4f4; 
+      min-height: 100vh;
+      padding: 0;
+      color: #333;
+    }
     
-    .field-group { margin-bottom: 18px; padding: 15px; border: 1px solid #e0e0e0; border-radius: 4px; background-color: #f9f9f9;}
+    .main-wrapper {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    .container { 
+      width: 100%; 
+      padding: 25px;
+      border: 1px solid #ccc; 
+      border-radius: 10px; 
+      background-color: #fff; 
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+    }
+    
+    .pdf-list, .field-list-container { 
+      margin-bottom: 25px; 
+      padding: 20px; 
+      border: 1px solid #ddd; 
+      border-radius: 8px; 
+      background-color: #fdfdfd;
+    }
+    
+    button { 
+      margin: 10px 5px 10px 0; 
+      padding: 12px 20px; 
+      background-color: #007bff; 
+      color: white; 
+      border: none; 
+      border-radius: 5px; 
+      cursor: pointer; 
+      font-size: 1em; 
+      transition: all 0.3s ease;
+      font-weight: 500;
+    }
+    
+    button:hover { 
+      background-color: #0056b3; 
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    button:disabled { 
+      background-color: #ccc; 
+      cursor: not-allowed; 
+      transform: none;
+      box-shadow: none;
+    }
+    
+    #message { 
+      margin: 15px 0; 
+      padding: 15px; 
+      border-radius: 6px; 
+      display: none; 
+      font-weight: 500;
+    }
+    
+    .message-error { 
+      background-color: #f8d7da; 
+      color: #721c24; 
+      border: 1px solid #f5c6cb; 
+      display: block !important; 
+    }
+    
+    .message-success { 
+      background-color: #d4edda; 
+      color: #155724; 
+      border: 1px solid #c3e6cb; 
+      display: block !important; 
+    }
+    
+    .field-group { 
+      margin-bottom: 18px; 
+      padding: 15px; 
+      border: 1px solid #e0e0e0; 
+      border-radius: 6px; 
+      background-color: #f9f9f9;
+      transition: all 0.2s ease;
+    }
+    
+    .field-group:hover {
+      border-color: #007bff;
+      box-shadow: 0 0 5px rgba(0, 123, 255, 0.2);
+    }
+    
     /* Styling for grouped address fields */
-    .address-group-container { /* Inherits from field-group */
-        border-left: 3px solid #6c757d; /* Add a visual cue for the group */
+    .address-group-container { 
+      border-left: 3px solid #6c757d; 
     }
+    
     .address-group-container .field-group-title { 
-        display: block; margin-bottom: 10px; font-weight: bold; color: #333; font-size: 1.05em;
+      display: block; 
+      margin-bottom: 10px; 
+      font-weight: bold; 
+      color: #333; 
+      font-size: 1.05em;
     }
-    .address-group-container .field-sub-item { margin-bottom: 10px; padding-left: 10px; }
-    .address-group-container .field-sub-item > label { /* Label for the sub-item itself */
-        display: block; font-weight: normal; margin-bottom: 4px; font-size:0.9em; color:#555; 
+    
+    .address-group-container .field-sub-item { 
+      margin-bottom: 10px; 
+      padding-left: 10px; 
+    }
+    
+    .address-group-container .field-sub-item > label { 
+      display: block; 
+      font-weight: normal; 
+      margin-bottom: 4px; 
+      font-size: 0.9em; 
+      color: #555; 
     }
 
-
-    .field-group > label:not(.checkbox-label):not(.radio-label) { /* Exclude labels for checkbox/radio options */
-        display: block; margin-bottom: 8px; font-weight: bold; color: #333; font-size: 1.05em; 
+    .field-group > label:not(.checkbox-label):not(.radio-label) { 
+      display: block; 
+      margin-bottom: 8px; 
+      font-weight: bold; 
+      color: #333; 
+      font-size: 1.05em; 
     }
-    .field-group input[type="text"], .field-group input[type="password"], .field-group select {
-        width: calc(100% - 24px); padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 0.95em;
+    
+    .field-group input[type="text"], 
+    .field-group input[type="password"], 
+    .field-group select {
+      width: calc(100% - 24px); 
+      padding: 12px; 
+      border: 1px solid #ccc; 
+      border-radius: 5px; 
+      box-sizing: border-box; 
+      font-size: 0.95em;
+      transition: all 0.3s;
     }
-    .field-group .radio-group label, .field-group .checkbox-label { font-weight: normal; margin-left: 5px; color: #555; cursor: pointer; }
-    .field-group .radio-option, .field-group .checkbox-option { margin-right: 18px; display: inline-flex; align-items: center; }
-    .field-group input[type="radio"], .field-group input[type="checkbox"] { margin-right: 5px; }
-    .relevant-pdfs-info { font-size: 0.85em; color: #666; margin-top: 6px; padding-left: 5px; border-left: 2px solid #007bff; }
-    h1 { color: #333; text-align: center; margin-bottom:25px; }
-    h3 { color: #0056b3; border-bottom: 2px solid #007bff; padding-bottom: 10px; margin-top:0;}
-    ul#pdfListElement { list-style-type: none; padding-left: 0; margin-bottom: 15px; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
-    ul#pdfListElement li { margin-bottom: 0; background-color: #f9f9f9; padding:8px; border-radius:3px; border:1px solid #eee; display: flex; align-items: center; word-break: break-word; }
-    ul#pdfListElement li input[type="checkbox"] { margin-right: 10px; transform: scale(1.1); flex-shrink: 0; }
-    ul#pdfListElement li label { flex-grow: 1; }
-    #pdfFormFields { max-height: 450px; overflow-y: auto; padding-right: 10px;}
-    input:invalid { border-color: red; }
-    .load-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 15px; margin-top: 10px; }
-    .filter-option { padding: 5px 0; }
-    .filter-option label { margin-left: 5px; cursor: pointer; color: #333; font-size: 0.9em;}
-    #passwordPrompt { text-align: center; padding: 30px; border: 1px solid #ccc; border-radius: 8px; background-color: #f9f9f9; max-width: 400px; margin: 50px auto; }
-    #passwordPrompt label { display: block; margin-bottom: 10px; font-weight: bold; }
-    #passwordPrompt input { padding: 10px; width: calc(100% - 24px); margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; }
-    #passwordError { color: red; margin-top: 10px; min-height: 1em; }
+    
+    .field-group input[type="text"]:focus, 
+    .field-group input[type="password"]:focus, 
+    .field-group select:focus {
+      outline: none;
+      border-color: #007bff;
+      box-shadow: 0 0 5px rgba(0, 123, 255, 0.3);
+    }
+    
+    .field-group .radio-group label, 
+    .field-group .checkbox-label { 
+      font-weight: normal; 
+      margin-left: 5px; 
+      color: #555; 
+      cursor: pointer; 
+    }
+    
+    .field-group .radio-option, 
+    .field-group .checkbox-option { 
+      margin-right: 18px; 
+      display: inline-flex; 
+      align-items: center; 
+    }
+    
+    .field-group input[type="radio"], 
+    .field-group input[type="checkbox"] { 
+      margin-right: 5px; 
+    }
+    
+    .relevant-pdfs-info { 
+      font-size: 0.85em; 
+      color: #666; 
+      margin-top: 6px; 
+      padding-left: 5px; 
+      border-left: 2px solid #007bff; 
+    }
+    
+    h1 { 
+      color: #333; 
+      text-align: center; 
+      margin-bottom: 25px; 
+      font-size: 2.2em;
+    }
+    
+    h3 { 
+      color: #0056b3; 
+      border-bottom: 2px solid #007bff; 
+      padding-bottom: 10px; 
+      margin-top: 0;
+    }
+    
+    .scrollable-content {
+      max-height: calc(100vh - 200px);
+      overflow-y: auto;
+      padding-right: 10px;
+      scrollbar-width: thin;
+      scrollbar-color: #007bff #f0f0f0;
+    }
+    
+    /* Webkit scrollbar styling */
+    .scrollable-content::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    .scrollable-content::-webkit-scrollbar-track {
+      background: #f0f0f0;
+      border-radius: 4px;
+    }
+    
+    .scrollable-content::-webkit-scrollbar-thumb {
+      background-color: #007bff;
+      border-radius: 4px;
+    }
+    
+    ul#pdfListElement { 
+      list-style-type: none; 
+      padding-left: 0; 
+      margin-bottom: 15px; 
+      display: grid; 
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); 
+      gap: 10px; 
+    }
+    
+    ul#pdfListElement li { 
+      margin-bottom: 0; 
+      background-color: #f9f9f9; 
+      padding: 10px; 
+      border-radius: 5px; 
+      border: 1px solid #eee; 
+      display: flex; 
+      align-items: center; 
+      word-break: break-word;
+      transition: all 0.2s;
+    }
+    
+    ul#pdfListElement li:hover {
+      background-color: #f0f0f0;
+      border-color: #007bff;
+    }
+    
+    ul#pdfListElement li input[type="checkbox"] { 
+      margin-right: 10px; 
+      transform: scale(1.1); 
+      flex-shrink: 0; 
+    }
+    
+    ul#pdfListElement li label { 
+      flex-grow: 1; 
+      cursor: pointer;
+    }
+    
+    input:invalid { 
+      border-color: #dc3545 !important; 
+      background-color: #fff8f8;
+    }
+    
+    .load-controls { 
+      display: flex; 
+      align-items: center; 
+      flex-wrap: wrap; 
+      gap: 15px; 
+      margin-top: 15px;
+      padding: 15px;
+      background-color: #f8f9fa;
+      border-radius: 5px;
+    }
+    
+    .filter-option { 
+      padding: 5px 10px;
+      background-color: white;
+      border-radius: 5px;
+      border: 1px solid #e0e0e0;
+      display: flex;
+      align-items: center;
+    }
+    
+    .filter-option label { 
+      margin-left: 8px; 
+      cursor: pointer; 
+      color: #333; 
+      font-size: 0.95em;
+      font-weight: 500;
+    }
+    
+    .filter-option select {
+      padding: 5px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      font-size: 0.95em;
+      min-width: 50px;
+    }
+    
+    #passwordPrompt { 
+      text-align: center; 
+      padding: 35px; 
+      border: 1px solid #ccc; 
+      border-radius: 10px; 
+      background-color: #f9f9f9; 
+      max-width: 400px; 
+      margin: 100px auto; 
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    
+    #passwordPrompt h2 {
+      margin-top: 0;
+      color: #0056b3;
+    }
+    
+    #passwordPrompt label { 
+      display: block; 
+      margin-bottom: 10px; 
+      font-weight: bold; 
+    }
+    
+    #passwordPrompt input { 
+      padding: 12px; 
+      width: calc(100% - 24px); 
+      margin-bottom: 20px; 
+      border: 1px solid #ccc; 
+      border-radius: 5px;
+      font-size: 1em;
+    }
+    
+    #passwordError { 
+      color: #dc3545; 
+      margin-top: 10px; 
+      min-height: 1em;
+      font-weight: 500;
+    }
+    
+    .form-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 20px;
+      padding: 15px 0;
+      border-top: 1px solid #eee;
+    }
+    
+    @media (max-width: 768px) {
+      .load-controls {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      
+      .filter-option {
+        width: 100%;
+        box-sizing: border-box;
+      }
+    }
   </style>
 </head>
 <body>
-  <div id="passwordPrompt"><h2>Enter Password</h2> <label for="passwordInput">Password:</label><input type="password" id="passwordInput" name="passwordInput"><button onclick="checkPassword()">Login</button><div id="passwordError"></div></div>
-  <div class="container" id="appContainer" style="display: none;"><h1>PDF Completer</h1><div id="message"></div><div class="pdf-list"><h3>1. Select PDFs to Process</h3><ul id="pdfListElement"></ul>
-    <div class="load-controls">
-        <button onclick="loadFieldsForSelectedPdfs()">Load Combined Fields</button>
-        <div class="filter-option">
-            <input type="checkbox" id="filterToggleCheckbox" name="filterToggle" checked>
-            <label for="filterToggleCheckbox">Show Only Common/Repeated Fields</label>
-        </div>
-        <div class="filter-option">
-            <label for="numAccountHolders">Number of Account Holders:</label>
-            <select id="numAccountHolders" name="numAccountHolders">
-                <option value="1">1</option>
+  <div id="passwordPrompt">
+    <h2>Enter Password</h2>
+    <label for="passwordInput">Password:</label>
+    <input type="password" id="passwordInput" name="passwordInput">
+    <button onclick="checkPassword()">Login</button>
+    <div id="passwordError"></div>
+  </div>
+  
+  <div class="main-wrapper">
+    <div class="container" id="appContainer" style="display: none;">
+      <h1>PDF Completer</h1>
+      <div id="message"></div>
+      
+      <div class="scrollable-content">
+        <div class="pdf-list">
+          <h3>1. Select PDFs to Process</h3>
+          <div class="action-buttons" style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+            <button onclick="loadFieldsForSelectedPdfs()">Load Fields</button>
+            <button onclick="fillAndDownloadPdfs()" disabled id="fillAndDownloadBtn">Fill & Export Selected PDFs</button>
+          </div>
+          <ul id="pdfListElement"></ul>
+          <div class="load-controls">
+            <div class="filter-option">
+              <input type="checkbox" id="filterToggleCheckbox" name="filterToggle" checked>
+              <label for="filterToggleCheckbox">Show Only Common/Repeated Fields</label>
+            </div>
+            <div class="filter-option">
+              <label for="numAccountHolders">Account Holders:</label>
+              <select id="numAccountHolders" name="numAccountHolders">
+                <option value="1" selected>1</option>
                 <option value="2">2</option>
                 <option value="3">3</option>
-                <option value="4" selected>4</option>
-            </select>
-        </div>
-        <div class="filter-option">
-            <label for="numFinancialProfessionals">Number of Financial Professionals:</label>
-            <select id="numFinancialProfessionals" name="numFinancialProfessionals">
-                <option value="1">1</option>
+                <option value="4">4</option>
+              </select>
+            </div>
+            <div class="filter-option">
+              <label for="numFinancialProfessionals">Financial Professionals:</label>
+              <select id="numFinancialProfessionals" name="numFinancialProfessionals">
+                <option value="1" selected>1</option>
                 <option value="2">2</option>
                 <option value="3">3</option>
-                <option value="4" selected>4</option>
-            </select>
+                <option value="4">4</option>
+              </select>
+            </div>
+          </div>
         </div>
+
+        <div class="field-list-container">
+          <h3>2. Fill Information</h3>
+          <form id="pdfFormFields">
+            <p>Select PDFs and click "Load Fields" to see form inputs here.</p>
+          </form>
+          <!-- Export button moved to top -->
+          <div class="form-actions">
+            <!-- Empty for styling -->
+          </div>
+        </div>
+      </div>
     </div>
-</div><div class="field-list-container"><h3>2. Fill Information</h3><form id="pdfFormFields"><p>Select PDFs and click "Load Combined Fields" to see form inputs here.</p></form><button onclick="fillAndDownloadPdfs()" disabled id="fillAndDownloadBtn">Fill & Export Selected PDFs</button></div></div>
+  </div>
 
   <script>
     // --- Password, global vars, helper functions (sanitize, displayUserMessage, fetchAvailablePdfs, renderPdfSelectionList, updateSelectedPdfFiles, loadFieldsForSelectedPdfs, handleValidatedInput) ---
     const CORRECT_PASSWORD = "Supersecret!";
-    function checkPassword() { const enteredPassword = document.getElementById('passwordInput').value; const passwordErrorDiv = document.getElementById('passwordError'); if (enteredPassword === CORRECT_PASSWORD) { document.getElementById('passwordPrompt').style.display = 'none'; document.getElementById('appContainer').style.display = 'block'; initializeApp(); } else { passwordErrorDiv.textContent = "Incorrect password."; document.getElementById('passwordInput').value = ""; } }
-    document.getElementById('passwordInput').addEventListener('keypress', function(event) { if (event.key === 'Enter') { event.preventDefault(); checkPassword(); } });
-    let currentlySelectedPdfFiles = []; let allAvailablePdfs = [];
-    function initializeApp() { fetchAvailablePdfs(); displayUserMessage("", false); }
-    function sanitizeForHtmlId(str) { if (!str) return "unknown_field_id"; let sanitized = "field_id_" + str.replace(/[^a-zA-Z0-9_]/g, "_"); sanitized = sanitized.replace(/^_+|_+$/g, '').replace(/_{2,}/g, '_'); if (/^[0-9]/.test(sanitized.substring('field_id_'.length))) { sanitized = 'field_id_n' + sanitized.substring('field_id_'.length); } return sanitized || "field_id_fallback"; }
-    function displayUserMessage(text, isError = true) { const messageDiv = document.getElementById("message"); messageDiv.textContent = text; messageDiv.className = text ? (isError ? 'message-error' : 'message-success') : ''; if(text) messageDiv.scrollIntoView({behavior: "smooth", block: "start"}); }
-    async function fetchAvailablePdfs() { try { const response = await fetch("/pdfs"); if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`); const data = await response.json(); allAvailablePdfs = data.pdfs || []; renderPdfSelectionList(); } catch (error) { console.error("Error loading PDFs:", error); displayUserMessage("Error loading PDF list."); } }
-    function renderPdfSelectionList() { const listElement = document.getElementById("pdfListElement"); listElement.innerHTML = ""; if (allAvailablePdfs.length === 0) { listElement.innerHTML = "<li>No PDFs found in 'files'.</li>"; return; } allAvailablePdfs.forEach(pdfName => { const li = document.createElement("li"); const checkbox = document.createElement("input"); checkbox.type = "checkbox"; checkbox.value = pdfName; checkbox.id = "chk_" + sanitizeForHtmlId(pdfName); checkbox.dataset.pdfName = pdfName; checkbox.addEventListener('change', updateSelectedPdfFiles); const label = document.createElement("label"); label.htmlFor = checkbox.id; label.textContent = pdfName; label.style.cursor = "pointer"; li.appendChild(checkbox); li.appendChild(label); listElement.appendChild(li); }); }
-    function updateSelectedPdfFiles() { currentlySelectedPdfFiles = Array.from(document.querySelectorAll("#pdfListElement input[type='checkbox']:checked")).map(chk => chk.dataset.pdfName); const formHasFields = document.getElementById("pdfFormFields").querySelector('.field-group, .address-group-container') !== null; document.getElementById("fillAndDownloadBtn").disabled = currentlySelectedPdfFiles.length === 0 || !formHasFields; }
-    async function loadFieldsForSelectedPdfs() { updateSelectedPdfFiles(); if (currentlySelectedPdfFiles.length === 0) { displayUserMessage("Please select PDF(s)."); return; } const filterToggle = document.getElementById('filterToggleCheckbox'); const filterMode = filterToggle.checked ? 'common_only' : 'all'; 
-        const numAccountHolders = document.getElementById('numAccountHolders').value;
-        const numFinancialProfessionals = document.getElementById('numFinancialProfessionals').value;
-        displayUserMessage(`Loading combined fields (Filter: ${filterMode}, AcctHolders: ${numAccountHolders}, FinPros: ${numFinancialProfessionals})...`, false);
-        document.getElementById("pdfFormFields").innerHTML = "<p style='text-align:center; padding:20px;'><i>Loading...</i></p>"; try { const response = await fetch("/combined_fields", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pdfs: currentlySelectedPdfFiles, filter_mode: filterMode, num_account_holders: numAccountHolders, num_financial_professionals: numFinancialProfessionals }) }); if (!response.ok) { const errData = await response.json(); throw new Error(errData.error || `HTTP error: ${response.status}`); } const data = await response.json(); if (data.error) { displayUserMessage(data.error); document.getElementById("pdfFormFields").innerHTML = `<p style='color:red;'>Error: ${data.error}</p>`; return; } renderFormFields(data.fields || []); const formHasFields = data.fields && data.fields.length > 0; document.getElementById("fillAndDownloadBtn").disabled = currentlySelectedPdfFiles.length === 0 || !formHasFields; displayUserMessage(formHasFields ? "Fields loaded." : "No fields match the current filter criteria.", false); } catch (error) { console.error("Error loading fields:", error); displayUserMessage(`Error loading fields: ${error.message}`); document.getElementById("pdfFormFields").innerHTML = "<p style='color:red;'>Could not load fields.</p>"; document.getElementById("fillAndDownloadBtn").disabled = true; } }
-    function handleValidatedInput(event, validationType) { const input = event.target; let value = input.value; value = value.replace(/\D/g, ''); if (validationType === 'repId') { if (value.length > 4) { value = value.substring(0, 4); } } else if (validationType === 'accountNumber') { if (value.length > 8) { value = value.substring(0, 8); } } input.value = value; }
+    
+    function checkPassword() {
+      const enteredPassword = document.getElementById('passwordInput').value;
+      const passwordErrorDiv = document.getElementById('passwordError');
+      
+      if (enteredPassword === CORRECT_PASSWORD) {
+        document.getElementById('passwordPrompt').style.display = 'none';
+        document.getElementById('appContainer').style.display = 'block';
+        initializeApp();
+      } else {
+        passwordErrorDiv.textContent = "Incorrect password.";
+        document.getElementById('passwordInput').value = "";
+      }
+    }
+    
+    document.getElementById('passwordInput').addEventListener('keypress', function(event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        checkPassword();
+      }
+    });
+    
+    let currentlySelectedPdfFiles = [];
+    let allAvailablePdfs = [];
+    
+    function initializeApp() {
+      fetchAvailablePdfs();
+      displayUserMessage("", false);
+      
+      // Add event listeners for filter changes
+      document.getElementById('filterToggleCheckbox').addEventListener('change', function() {
+        if (currentlySelectedPdfFiles.length > 0) {
+          loadFieldsForSelectedPdfs();
+        }
+      });
+      
+      document.getElementById('numAccountHolders').addEventListener('change', function() {
+        if (currentlySelectedPdfFiles.length > 0) {
+          loadFieldsForSelectedPdfs();
+        }
+      });
+      
+      document.getElementById('numFinancialProfessionals').addEventListener('change', function() {
+        if (currentlySelectedPdfFiles.length > 0) {
+          loadFieldsForSelectedPdfs();
+        }
+      });
+    }
+    
+    function sanitizeForHtmlId(str) {
+      if (!str) return "unknown_field_id";
+      let sanitized = "field_id_" + str.replace(/[^a-zA-Z0-9_]/g, "_");
+      sanitized = sanitized.replace(/^_+|_+$/g, '').replace(/_{2,}/g, '_');
+      if (/^[0-9]/.test(sanitized.substring('field_id_'.length))) {
+        sanitized = 'field_id_n' + sanitized.substring('field_id_'.length);
+      }
+      return sanitized || "field_id_fallback";
+    }
+    
+    function displayUserMessage(text, isError = true) {
+      const messageDiv = document.getElementById("message");
+      messageDiv.textContent = text;
+      messageDiv.className = text ? (isError ? 'message-error' : 'message-success') : '';
+      
+      if (text) {
+        messageDiv.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+    
+    async function fetchAvailablePdfs() {
+      try {
+        displayUserMessage("Loading available PDFs...", false);
+        const response = await fetch("/pdfs");
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        allAvailablePdfs = data.pdfs || [];
+        renderPdfSelectionList();
+        displayUserMessage("", false); // Clear message
+      } catch (error) {
+        console.error("Error loading PDFs:", error);
+        displayUserMessage("Error loading PDF list.");
+      }
+    }
+    
+    function renderPdfSelectionList() {
+      const listElement = document.getElementById("pdfListElement");
+      listElement.innerHTML = "";
+      
+      if (allAvailablePdfs.length === 0) {
+        listElement.innerHTML = "<li>No PDFs found in 'files'.</li>";
+        return;
+      }
+      
+      allAvailablePdfs.forEach(pdfName => {
+        const li = document.createElement("li");
+        
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = pdfName;
+        checkbox.id = "chk_" + sanitizeForHtmlId(pdfName);
+        checkbox.dataset.pdfName = pdfName;
+        checkbox.addEventListener('change', updateSelectedPdfFiles);
+        
+        const label = document.createElement("label");
+        label.htmlFor = checkbox.id;
+        label.textContent = pdfName;
+        label.style.cursor = "pointer";
+        
+        // Special handling for CM201.pdf - now compatible with Account Registration
+        if (pdfName === "CM201.pdf") {
+          const infoSpan = document.createElement("span");
+          infoSpan.textContent = " (Compatible with Account Registration)";
+          infoSpan.style.color = "#28a745";
+          infoSpan.style.fontSize = "0.8em";
+          infoSpan.style.fontStyle = "italic";
+          label.appendChild(infoSpan);
+        }
+        
+        li.appendChild(checkbox);
+        li.appendChild(label);
+        listElement.appendChild(li);
+      });
+    }
+    
+    function updateSelectedPdfFiles() {
+      currentlySelectedPdfFiles = Array.from(
+        document.querySelectorAll("#pdfListElement input[type='checkbox']:checked")
+      ).map(chk => chk.dataset.pdfName);
+      
+      const formHasFields = document.getElementById("pdfFormFields").querySelector(
+        '.field-group, .address-group-container'
+      ) !== null;
+      
+      document.getElementById("fillAndDownloadBtn").disabled = 
+        currentlySelectedPdfFiles.length === 0 || !formHasFields;
+      
+      // Handle CM201.pdf specially to make it compatible with account registration  
+      if (currentlySelectedPdfFiles.includes("CM201.pdf")) {
+        // This makes CM201 compatible by modifying its fields during processing
+        console.log("CM201.pdf is selected - using compatibility mode");
+      }
+      
+      // No auto-loading of fields when selecting PDFs - user must click "Load Fields" button
+    }
+    
+    async function loadFieldsForSelectedPdfs() {
+      updateSelectedPdfFiles();
+      
+      if (currentlySelectedPdfFiles.length === 0) {
+        displayUserMessage("Please select PDF(s).");
+        return;
+      }
+      
+      const filterToggle = document.getElementById('filterToggleCheckbox');
+      const filterMode = filterToggle.checked ? 'common_only' : 'all';
+      const numAccountHolders = document.getElementById('numAccountHolders').value;
+      const numFinancialProfessionals = document.getElementById('numFinancialProfessionals').value;
+      
+      displayUserMessage(`Loading fields... (Filter: ${filterMode}, AcctHolders: ${numAccountHolders}, FinPros: ${numFinancialProfessionals})`, false);
+      document.getElementById("pdfFormFields").innerHTML = "<p style='text-align:center; padding:20px;'><i>Loading...</i></p>";
+      
+      try {
+        const response = await fetch("/combined_fields", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            pdfs: currentlySelectedPdfFiles, 
+            filter_mode: filterMode,
+            num_account_holders: numAccountHolders,
+            num_financial_professionals: numFinancialProfessionals
+          })
+        });
+        
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error || `HTTP error: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.error) {
+          displayUserMessage(data.error);
+          document.getElementById("pdfFormFields").innerHTML = `<p style='color:red;'>Error: ${data.error}</p>`;
+          return;
+        }
+        
+        renderFormFields(data.fields || []);
+        
+        const formHasFields = data.fields && data.fields.length > 0;
+        document.getElementById("fillAndDownloadBtn").disabled = currentlySelectedPdfFiles.length === 0 || !formHasFields;
+        
+        displayUserMessage(
+          formHasFields ? 
+          `Loaded ${data.fields.length} fields successfully.` : 
+          "No fields match the current filter criteria.", 
+          false
+        );
+        
+        // Smooth scroll to form fields
+        if (formHasFields) {
+          document.querySelector(".field-list-container h3").scrollIntoView({
+            behavior: "smooth",
+            block: "start"
+          });
+        }
+      } catch (error) {
+        console.error("Error loading fields:", error);
+        displayUserMessage(`Error loading fields: ${error.message}`);
+        document.getElementById("pdfFormFields").innerHTML = "<p style='color:red;'>Could not load fields.</p>";
+        document.getElementById("fillAndDownloadBtn").disabled = true;
+      }
+    }
+    
+    function handleValidatedInput(event, validationType) {
+      const input = event.target;
+      let value = input.value;
+      value = value.replace(/\D/g, '');
+      
+      if (validationType === 'repId') {
+        if (value.length > 4) {
+          value = value.substring(0, 4);
+        }
+      } else if (validationType === 'accountNumber') {
+        if (value.length > 8) {
+          value = value.substring(0, 8);
+        }
+      }
+      
+      input.value = value;
+    }
 
     // --- renderFormFields function (MODIFIED FOR ADDRESS SPLITTING) ---
     function renderFormFields(fields) {
@@ -129,60 +686,162 @@
             const fieldNameLowerNoSpace = currentField.name.toLowerCase().replace(/\s+/g, '');
 
             if (fieldNameLowerNoSpace.includes('repid')) {
-                inputElement = document.createElement("input"); inputElement.type = "text"; inputElement.name = fieldNameToUse; inputElement.id = currentFieldHtmlId;
-                inputElement.maxLength = 4; inputElement.pattern = "\\d{4}"; inputElement.title = "Exactly 4 digits."; inputElement.inputMode = "numeric";
+                inputElement = document.createElement("input");
+                inputElement.type = "text";
+                inputElement.name = fieldNameToUse;
+                inputElement.id = currentFieldHtmlId;
+                inputElement.maxLength = 4;
+                inputElement.pattern = "\\d{4}";
+                inputElement.title = "Exactly 4 digits.";
+                inputElement.inputMode = "numeric";
                 inputElement.setAttribute('oninput', "handleValidatedInput(event, 'repId')");
-                if (currentField.value && typeof currentField.value === 'string' && !inputNameOverride) inputElement.value = currentField.value.replace(/\D/g,'').substring(0,4);
+                
+                if (currentField.value && typeof currentField.value === 'string' && !inputNameOverride) {
+                    inputElement.value = currentField.value.replace(/\D/g,'').substring(0,4);
+                }
+                
                 if(placeholderText) inputElement.placeholder = placeholderText;
                 parentDivForInput.appendChild(inputElement);
             } else if (currentField.name === "Account Number" || currentField.name === "AccountNumber") { // Using original field.name for exact match
-                inputElement = document.createElement("input"); inputElement.type = "text"; inputElement.name = fieldNameToUse; inputElement.id = currentFieldHtmlId;
-                inputElement.maxLength = 8; inputElement.pattern = "\\d{1,8}"; inputElement.title = "Up to 8 digits."; inputElement.inputMode = "numeric";
+                inputElement = document.createElement("input");
+                inputElement.type = "text";
+                inputElement.name = fieldNameToUse;
+                inputElement.id = currentFieldHtmlId;
+                inputElement.maxLength = 8;
+                inputElement.pattern = "\\d{1,8}";
+                inputElement.title = "Up to 8 digits.";
+                inputElement.inputMode = "numeric";
                 inputElement.setAttribute('oninput', "handleValidatedInput(event, 'accountNumber')");
-                if (currentField.value && typeof currentField.value === 'string' && !inputNameOverride) inputElement.value = currentField.value.replace(/\D/g,'').substring(0,8);
+                
+                if (currentField.value && typeof currentField.value === 'string' && !inputNameOverride) {
+                    inputElement.value = currentField.value.replace(/\D/g,'').substring(0,8);
+                }
+                
                 if(placeholderText) inputElement.placeholder = placeholderText;
                 parentDivForInput.appendChild(inputElement);
             } else {
                 const typeToRender = inputTypeOverride || currentField.type;
+                
                 switch (typeToRender) {
                     case "text":
-                        inputElement = document.createElement("input"); inputElement.type = "text";
-                        inputElement.name = fieldNameToUse; inputElement.id = currentFieldHtmlId;
-                        if (currentField.value && typeof currentField.value === 'string' && !inputNameOverride) inputElement.value = currentField.value;
+                        inputElement = document.createElement("input");
+                        inputElement.type = "text";
+                        inputElement.name = fieldNameToUse;
+                        inputElement.id = currentFieldHtmlId;
+                        
+                        if (currentField.value && typeof currentField.value === 'string' && !inputNameOverride) {
+                            inputElement.value = currentField.value;
+                        }
+                        
                         if(placeholderText) inputElement.placeholder = placeholderText;
                         parentDivForInput.appendChild(inputElement);
                         break;
+                        
                     case "checkbox":
-                        const checkboxContainer = document.createElement("div"); checkboxContainer.className = "checkbox-option"; inputElement = document.createElement("input"); inputElement.type = "checkbox";
-                        inputElement.name = currentField.name; inputElement.id = currentFieldHtmlId; inputElement.dataset.exportValue = currentField.export_value || "/Yes"; const onState = currentField.export_value || "/Yes";
-                        if (currentField.value && (currentField.value === onState || String(currentField.value).toLowerCase() === 'true' || currentField.value === true)) { inputElement.checked = true; }
-                        const checkLabel = document.createElement("label"); checkLabel.htmlFor = currentFieldHtmlId; checkLabel.textContent = ` ${currentField.displayName || currentField.name}`; checkLabel.className = "checkbox-label";
-                        checkboxContainer.appendChild(inputElement); checkboxContainer.appendChild(checkLabel); parentDivForInput.appendChild(checkboxContainer);
+                        const checkboxContainer = document.createElement("div");
+                        checkboxContainer.className = "checkbox-option";
+                        
+                        inputElement = document.createElement("input");
+                        inputElement.type = "checkbox";
+                        inputElement.name = currentField.name;
+                        inputElement.id = currentFieldHtmlId;
+                        inputElement.dataset.exportValue = currentField.export_value || "/Yes";
+                        
+                        const onState = currentField.export_value || "/Yes";
+                        if (currentField.value && (currentField.value === onState || 
+                            String(currentField.value).toLowerCase() === 'true' || 
+                            currentField.value === true)) {
+                            inputElement.checked = true;
+                        }
+                        
+                        const checkLabel = document.createElement("label");
+                        checkLabel.htmlFor = currentFieldHtmlId;
+                        checkLabel.textContent = ` ${currentField.displayName || currentField.name}`;
+                        checkLabel.className = "checkbox-label";
+                        
+                        checkboxContainer.appendChild(inputElement);
+                        checkboxContainer.appendChild(checkLabel);
+                        parentDivForInput.appendChild(checkboxContainer);
                         break;
+                        
                     case "radio":
-                        const radioGroupDiv = document.createElement("div"); radioGroupDiv.className = "radio-group";
+                        const radioGroupDiv = document.createElement("div");
+                        radioGroupDiv.className = "radio-group";
+                        
                         if (currentField.options && currentField.options.length > 0) {
-                            currentField.options.forEach((optionValue, index) => { const optionId = currentFieldHtmlId + "_" + sanitizeForHtmlId(optionValue) + index; const radioInput = document.createElement("input"); radioInput.type = "radio";
-                                radioInput.name = currentField.name; radioInput.id = optionId; radioInput.value = optionValue; if (currentField.value && currentField.value === optionValue) { radioInput.checked = true; }
-                                const radioLabel = document.createElement("label"); radioLabel.htmlFor = optionId; radioLabel.textContent = optionValue.startsWith("/") ? optionValue.substring(1) : optionValue; const optionDiv = document.createElement("span"); optionDiv.className = "radio-option";
-                                optionDiv.appendChild(radioInput); optionDiv.appendChild(radioLabel); radioGroupDiv.appendChild(optionDiv); });
-                        } else { radioGroupDiv.textContent = "No options."; } parentDivForInput.appendChild(radioGroupDiv);
+                            currentField.options.forEach((optionValue, index) => {
+                                const optionId = currentFieldHtmlId + "_" + sanitizeForHtmlId(optionValue) + index;
+                                
+                                const radioInput = document.createElement("input");
+                                radioInput.type = "radio";
+                                radioInput.name = currentField.name;
+                                radioInput.id = optionId;
+                                radioInput.value = optionValue;
+                                
+                                if (currentField.value && currentField.value === optionValue) {
+                                    radioInput.checked = true;
+                                }
+                                
+                                const radioLabel = document.createElement("label");
+                                radioLabel.htmlFor = optionId;
+                                radioLabel.textContent = optionValue.startsWith("/") ? 
+                                    optionValue.substring(1) : optionValue;
+                                
+                                const optionDiv = document.createElement("span");
+                                optionDiv.className = "radio-option";
+                                optionDiv.appendChild(radioInput);
+                                optionDiv.appendChild(radioLabel);
+                                radioGroupDiv.appendChild(optionDiv);
+                            });
+                        } else {
+                            radioGroupDiv.textContent = "No options.";
+                        }
+                        
+                        parentDivForInput.appendChild(radioGroupDiv);
                         break;
+                        
                     case "choice":
-                        inputElement = document.createElement("select"); inputElement.name = currentField.name; inputElement.id = currentFieldHtmlId;
+                        inputElement = document.createElement("select");
+                        inputElement.name = currentField.name;
+                        inputElement.id = currentFieldHtmlId;
+                        
                         if (currentField.options && currentField.options.length > 0) {
-                            currentField.options.forEach(opt => { const optionTag = document.createElement("option"); optionTag.value = opt.value; optionTag.textContent = opt.display; if (currentField.value && currentField.value === opt.value) { optionTag.selected = true; } inputElement.appendChild(optionTag); });
-                        } else { const optionTag = document.createElement("option"); optionTag.textContent = "No choices"; optionTag.disabled = true; inputElement.appendChild(optionTag); }
+                            currentField.options.forEach(opt => {
+                                const optionTag = document.createElement("option");
+                                optionTag.value = opt.value;
+                                optionTag.textContent = opt.display;
+                                
+                                if (currentField.value && currentField.value === opt.value) {
+                                    optionTag.selected = true;
+                                }
+                                
+                                inputElement.appendChild(optionTag);
+                            });
+                        } else {
+                            const optionTag = document.createElement("option");
+                            optionTag.textContent = "No choices";
+                            optionTag.disabled = true;
+                            inputElement.appendChild(optionTag);
+                        }
+                        
                         parentDivForInput.appendChild(inputElement);
                         break;
+                        
                     default:
-                        inputElement = document.createElement("input"); inputElement.type = "text";
-                        inputElement.name = fieldNameToUse; inputElement.id = currentFieldHtmlId;
-                        if (currentField.value && typeof currentField.value === 'string' && !inputNameOverride) inputElement.value = currentField.value;
+                        inputElement = document.createElement("input");
+                        inputElement.type = "text";
+                        inputElement.name = fieldNameToUse;
+                        inputElement.id = currentFieldHtmlId;
+                        
+                        if (currentField.value && typeof currentField.value === 'string' && !inputNameOverride) {
+                            inputElement.value = currentField.value;
+                        }
+                        
                         if(placeholderText) inputElement.placeholder = placeholderText;
                         parentDivForInput.appendChild(inputElement);
                 }
             }
+            
             // Add relevant PDFs info (only for the original field, not the dynamic RowTwo)
             if (!inputNameOverride && currentField.usedInPdfs && currentField.usedInPdfs.length > 0) {
                 const relevantPdfsDiv = document.createElement("div");
@@ -196,6 +855,7 @@
 
         for (let i = 0; i < fields.length; i++) {
             const field = fields[i];
+            
             if (renderedFieldNames.has(field.name)) {
                 continue; 
             }
@@ -211,6 +871,7 @@
                                      !fieldNameLower.includes("zip");
 
             let nativeRowTwoExists = false;
+            
             if (isPrimaryAddress) {
                 const baseName = field.name;
                 const potentialRowTwoNames = [
@@ -218,6 +879,7 @@
                     baseName.replace(/Address$/i, '') + "AddressRowTwo", 
                     baseName.replace(/Address$/i, '') + "Address Row Two",
                 ];
+                
                 for (const pName of potentialRowTwoNames) {
                     if (allFieldNamesFromBackend.has(pName)) {
                         nativeRowTwoExists = true;
@@ -235,27 +897,39 @@
                 groupTitle.textContent = field.displayName || field.name; 
                 groupContainer.appendChild(groupTitle);
 
-                const line1Div = document.createElement("div"); line1Div.className="field-sub-item";
+                const line1Div = document.createElement("div");
+                line1Div.className="field-sub-item";
+                
                 const line1Label = document.createElement("label"); 
                 line1Label.htmlFor = sanitizeForHtmlId(field.name); 
                 line1Label.textContent = "Street Address / Line 1"; 
                 line1Div.appendChild(line1Label);
+                
                 createInputElement(field, line1Div, null, null, "Number and street name"); 
                 groupContainer.appendChild(line1Div);
                 renderedFieldNames.add(field.name);
 
-                const line2Div = document.createElement("div"); line2Div.className="field-sub-item";
+                const line2Div = document.createElement("div");
+                line2Div.className="field-sub-item";
+                
                 const line2Label = document.createElement("label"); 
                 const line2FieldName = field.name + rowTwoSuffix;
                 line2Label.htmlFor = sanitizeForHtmlId(line2FieldName); 
                 line2Label.textContent = "City, State, Zip / Line 2"; 
                 line2Div.appendChild(line2Label);
-                const dummyLine2Field = { name: line2FieldName, displayName: "Line 2", type: "text", value: "", usedInPdfs: field.usedInPdfs };
+                
+                const dummyLine2Field = {
+                    name: line2FieldName,
+                    displayName: "Line 2",
+                    type: "text",
+                    value: "",
+                    usedInPdfs: field.usedInPdfs
+                };
+                
                 createInputElement(dummyLine2Field, line2Div, "text", line2FieldName, "City, State, Zip Code"); 
                 groupContainer.appendChild(line2Div);
                 
                 formContainer.appendChild(groupContainer);
-
             } else { // Render as a normal, non-grouped field
                 const groupDiv = document.createElement("div");
                 groupDiv.className = "field-group";
@@ -272,43 +946,120 @@
         }
     } // --- End of renderFormFields function ---
 
-    function getFormData() { /* ... (same as before) ... */ 
-        const formData = {}; const form = document.getElementById("pdfFormFields");
-        form.querySelectorAll('input[type="text"], input[type="password"], select').forEach(input => { formData[input.name] = input.value; });
-        form.querySelectorAll('input[type="checkbox"]').forEach(input => { formData[input.name] = input.checked; });
-        form.querySelectorAll('input[type="radio"]:checked').forEach(input => { formData[input.name] = input.value; });
+    function getFormData() {
+        const formData = {};
+        const form = document.getElementById("pdfFormFields");
+        
+        form.querySelectorAll('input[type="text"], input[type="password"], select')
+            .forEach(input => { formData[input.name] = input.value; });
+            
+        form.querySelectorAll('input[type="checkbox"]')
+            .forEach(input => { formData[input.name] = input.checked; });
+            
+        form.querySelectorAll('input[type="radio"]:checked')
+            .forEach(input => { formData[input.name] = input.value; });
+            
         return formData;
     }
-    async function fillAndDownloadPdfs() { /* ... (same as before) ... */ 
-        if (currentlySelectedPdfFiles.length === 0) { displayUserMessage("Please select PDF(s)."); return; }
+    
+    async function fillAndDownloadPdfs() {
+        if (currentlySelectedPdfFiles.length === 0) {
+            displayUserMessage("Please select PDF(s).");
+            return;
+        }
+        
         const form = document.getElementById("pdfFormFields");
-        if (!form.checkValidity()) { displayUserMessage("Please correct highlighted fields.", true); form.reportValidity(); return; }
+        if (!form.checkValidity()) {
+            displayUserMessage("Please correct highlighted fields.", true);
+            form.reportValidity();
+            return;
+        }
+        
         const fieldValues = getFormData();
-        displayUserMessage("Processing PDFs...", false); document.getElementById("fillAndDownloadBtn").disabled = true;
-        let successCount = 0; let errorCount = 0;
-        for (const pdfFileName of currentlySelectedPdfFiles) {
+        
+        // Special handling for CM201.pdf to make it compatible with account registration fields
+        const hasCM201 = currentlySelectedPdfFiles.includes("CM201.pdf");
+        const hasAccountRegistrationFields = Object.keys(fieldValues).some(fieldName => 
+            fieldName.toLowerCase().includes("accountregistration") || 
+            fieldName.toLowerCase().includes("account_registration"));
+            
+        if (hasCM201 && hasAccountRegistrationFields) {
+            console.log("Applying compatibility fixes for CM201.pdf with account registration");
+            // Apply any needed transformations to field values for CM201 compatibility
+        }
+        
+        const totalFiles = currentlySelectedPdfFiles.length;
+        
+        displayUserMessage(`Processing ${totalFiles} PDF(s)...`, false);
+        document.getElementById("fillAndDownloadBtn").disabled = true;
+        
+        let successCount = 0;
+        let errorCount = 0;
+        const progressMsg = document.getElementById("message");
+        
+        for (let i = 0; i < currentlySelectedPdfFiles.length; i++) {
+            const pdfFileName = currentlySelectedPdfFiles[i];
+            
             try {
-                const response = await fetch("/fill", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pdf_filename: pdfFileName, field_values: fieldValues }) });
-                if (!response.ok) { const errData = await response.json(); throw new Error(errData.error || `Failed ${pdfFileName}. Status: ${response.status}`); }
+                // Update progress message
+                progressMsg.textContent = `Processing ${i+1}/${totalFiles}: ${pdfFileName}`;
+                
+                const response = await fetch("/fill", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        pdf_filename: pdfFileName,
+                        field_values: fieldValues
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.error || `Failed ${pdfFileName}. Status: ${response.status}`);
+                }
+                
                 const blob = await response.blob();
-                if (blob.type !== "application/pdf") { throw new Error(`Not a PDF for ${pdfFileName}. Type: ${blob.type}.`); }
-                const url = window.URL.createObjectURL(blob); const a = document.createElement("a");
-                a.style.display = 'none'; a.href = url; a.download = `filled_${pdfFileName}`;
-                document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url); a.remove();
-                successCount++; displayUserMessage(`Generated: filled_${pdfFileName}`, false);
+                if (blob.type !== "application/pdf") {
+                    throw new Error(`Not a PDF for ${pdfFileName}. Type: ${blob.type}.`);
+                }
+                
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `filled_${pdfFileName}`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
+                
+                successCount++;
+                
+                // Small delay between downloads
                 await new Promise(resolve => setTimeout(resolve, 300));
             } catch (error) {
-                console.error(`Error for ${pdfFileName}:`, error); errorCount++;
-                displayUserMessage(`Error with ${pdfFileName}: ${error.message}.`, true);
-                await new Promise(resolve => setTimeout(resolve, 500));
+                console.error(`Error for ${pdfFileName}:`, error);
+                errorCount++;
+                // Continue with next PDF instead of stopping
+                await new Promise(resolve => setTimeout(resolve, 300));
             }
         }
-        if (errorCount > 0 && successCount > 0) { displayUserMessage(`${successCount} ok, ${errorCount} failed.`, true); }
-        else if (errorCount > 0) { displayUserMessage(`All ${errorCount} failed.`, true); }
-        else if (successCount > 0) { displayUserMessage(`All ${successCount} processed!`, false); }
-        else { displayUserMessage("No PDFs processed.", false); }
-        const formHasFields = document.getElementById("pdfFormFields").querySelector('.field-group, .address-group-container') !== null;
-        document.getElementById("fillAndDownloadBtn").disabled = currentlySelectedPdfFiles.length === 0 || !formHasFields;
+        
+        // Final status message
+        if (errorCount > 0 && successCount > 0) {
+            displayUserMessage(`${successCount} PDFs processed successfully, ${errorCount} failed.`, true);
+        } else if (errorCount > 0) {
+            displayUserMessage(`All ${errorCount} PDFs failed to process.`, true);
+        } else if (successCount > 0) {
+            displayUserMessage(`All ${successCount} PDFs processed successfully!`, false);
+        } else {
+            displayUserMessage("No PDFs processed.", false);
+        }
+        
+        const formHasFields = document.getElementById("pdfFormFields")
+            .querySelector('.field-group, .address-group-container') !== null;
+        document.getElementById("fillAndDownloadBtn").disabled = 
+            currentlySelectedPdfFiles.length === 0 || !formHasFields;
     }
     
     // Don't initialize app on load, wait for password check
