@@ -57,7 +57,33 @@
 </head>
 <body>
   <div id="passwordPrompt"><h2>Enter Password</h2> <label for="passwordInput">Password:</label><input type="password" id="passwordInput" name="passwordInput"><button onclick="checkPassword()">Login</button><div id="passwordError"></div></div>
-  <div class="container" id="appContainer" style="display: none;"><h1>PDF Completer</h1><div id="message"></div><div class="pdf-list"><h3>1. Select PDFs to Process</h3><ul id="pdfListElement"></ul><div class="load-controls"><button onclick="loadFieldsForSelectedPdfs()">Load Combined Fields</button><div class="filter-option"><input type="checkbox" id="filterToggleCheckbox" name="filterToggle" checked><label for="filterToggleCheckbox">Show Only Common/Repeated Fields</label></div></div></div><div class="field-list-container"><h3>2. Fill Information</h3><form id="pdfFormFields"><p>Select PDFs and click "Load Combined Fields" to see form inputs here.</p></form><button onclick="fillAndDownloadPdfs()" disabled id="fillAndDownloadBtn">Fill & Export Selected PDFs</button></div></div>
+  <div class="container" id="appContainer" style="display: none;"><h1>PDF Completer</h1><div id="message"></div><div class="pdf-list"><h3>1. Select PDFs to Process</h3><ul id="pdfListElement"></ul>
+    <div class="load-controls">
+        <button onclick="loadFieldsForSelectedPdfs()">Load Combined Fields</button>
+        <div class="filter-option">
+            <input type="checkbox" id="filterToggleCheckbox" name="filterToggle" checked>
+            <label for="filterToggleCheckbox">Show Only Common/Repeated Fields</label>
+        </div>
+        <div class="filter-option">
+            <label for="numAccountHolders">Number of Account Holders:</label>
+            <select id="numAccountHolders" name="numAccountHolders">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4" selected>4</option>
+            </select>
+        </div>
+        <div class="filter-option">
+            <label for="numFinancialProfessionals">Number of Financial Professionals:</label>
+            <select id="numFinancialProfessionals" name="numFinancialProfessionals">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4" selected>4</option>
+            </select>
+        </div>
+    </div>
+</div><div class="field-list-container"><h3>2. Fill Information</h3><form id="pdfFormFields"><p>Select PDFs and click "Load Combined Fields" to see form inputs here.</p></form><button onclick="fillAndDownloadPdfs()" disabled id="fillAndDownloadBtn">Fill & Export Selected PDFs</button></div></div>
 
   <script>
     // --- Password, global vars, helper functions (sanitize, displayUserMessage, fetchAvailablePdfs, renderPdfSelectionList, updateSelectedPdfFiles, loadFieldsForSelectedPdfs, handleValidatedInput) ---
@@ -71,7 +97,11 @@
     async function fetchAvailablePdfs() { try { const response = await fetch("/pdfs"); if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`); const data = await response.json(); allAvailablePdfs = data.pdfs || []; renderPdfSelectionList(); } catch (error) { console.error("Error loading PDFs:", error); displayUserMessage("Error loading PDF list."); } }
     function renderPdfSelectionList() { const listElement = document.getElementById("pdfListElement"); listElement.innerHTML = ""; if (allAvailablePdfs.length === 0) { listElement.innerHTML = "<li>No PDFs found in 'files'.</li>"; return; } allAvailablePdfs.forEach(pdfName => { const li = document.createElement("li"); const checkbox = document.createElement("input"); checkbox.type = "checkbox"; checkbox.value = pdfName; checkbox.id = "chk_" + sanitizeForHtmlId(pdfName); checkbox.dataset.pdfName = pdfName; checkbox.addEventListener('change', updateSelectedPdfFiles); const label = document.createElement("label"); label.htmlFor = checkbox.id; label.textContent = pdfName; label.style.cursor = "pointer"; li.appendChild(checkbox); li.appendChild(label); listElement.appendChild(li); }); }
     function updateSelectedPdfFiles() { currentlySelectedPdfFiles = Array.from(document.querySelectorAll("#pdfListElement input[type='checkbox']:checked")).map(chk => chk.dataset.pdfName); const formHasFields = document.getElementById("pdfFormFields").querySelector('.field-group, .address-group-container') !== null; document.getElementById("fillAndDownloadBtn").disabled = currentlySelectedPdfFiles.length === 0 || !formHasFields; }
-    async function loadFieldsForSelectedPdfs() { updateSelectedPdfFiles(); if (currentlySelectedPdfFiles.length === 0) { displayUserMessage("Please select PDF(s)."); return; } const filterToggle = document.getElementById('filterToggleCheckbox'); const filterMode = filterToggle.checked ? 'common_only' : 'all'; displayUserMessage(`Loading combined fields (Filter: ${filterMode})...`, false); document.getElementById("pdfFormFields").innerHTML = "<p style='text-align:center; padding:20px;'><i>Loading...</i></p>"; try { const response = await fetch("/combined_fields", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pdfs: currentlySelectedPdfFiles, filter_mode: filterMode }) }); if (!response.ok) { const errData = await response.json(); throw new Error(errData.error || `HTTP error: ${response.status}`); } const data = await response.json(); if (data.error) { displayUserMessage(data.error); document.getElementById("pdfFormFields").innerHTML = `<p style='color:red;'>Error: ${data.error}</p>`; return; } renderFormFields(data.fields || []); const formHasFields = data.fields && data.fields.length > 0; document.getElementById("fillAndDownloadBtn").disabled = currentlySelectedPdfFiles.length === 0 || !formHasFields; displayUserMessage(formHasFields ? "Fields loaded." : "No fields match the current filter criteria.", false); } catch (error) { console.error("Error loading fields:", error); displayUserMessage(`Error loading fields: ${error.message}`); document.getElementById("pdfFormFields").innerHTML = "<p style='color:red;'>Could not load fields.</p>"; document.getElementById("fillAndDownloadBtn").disabled = true; } }
+    async function loadFieldsForSelectedPdfs() { updateSelectedPdfFiles(); if (currentlySelectedPdfFiles.length === 0) { displayUserMessage("Please select PDF(s)."); return; } const filterToggle = document.getElementById('filterToggleCheckbox'); const filterMode = filterToggle.checked ? 'common_only' : 'all'; 
+        const numAccountHolders = document.getElementById('numAccountHolders').value;
+        const numFinancialProfessionals = document.getElementById('numFinancialProfessionals').value;
+        displayUserMessage(`Loading combined fields (Filter: ${filterMode}, AcctHolders: ${numAccountHolders}, FinPros: ${numFinancialProfessionals})...`, false);
+        document.getElementById("pdfFormFields").innerHTML = "<p style='text-align:center; padding:20px;'><i>Loading...</i></p>"; try { const response = await fetch("/combined_fields", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pdfs: currentlySelectedPdfFiles, filter_mode: filterMode, num_account_holders: numAccountHolders, num_financial_professionals: numFinancialProfessionals }) }); if (!response.ok) { const errData = await response.json(); throw new Error(errData.error || `HTTP error: ${response.status}`); } const data = await response.json(); if (data.error) { displayUserMessage(data.error); document.getElementById("pdfFormFields").innerHTML = `<p style='color:red;'>Error: ${data.error}</p>`; return; } renderFormFields(data.fields || []); const formHasFields = data.fields && data.fields.length > 0; document.getElementById("fillAndDownloadBtn").disabled = currentlySelectedPdfFiles.length === 0 || !formHasFields; displayUserMessage(formHasFields ? "Fields loaded." : "No fields match the current filter criteria.", false); } catch (error) { console.error("Error loading fields:", error); displayUserMessage(`Error loading fields: ${error.message}`); document.getElementById("pdfFormFields").innerHTML = "<p style='color:red;'>Could not load fields.</p>"; document.getElementById("fillAndDownloadBtn").disabled = true; } }
     function handleValidatedInput(event, validationType) { const input = event.target; let value = input.value; value = value.replace(/\D/g, ''); if (validationType === 'repId') { if (value.length > 4) { value = value.substring(0, 4); } } else if (validationType === 'accountNumber') { if (value.length > 8) { value = value.substring(0, 8); } } input.value = value; }
 
     // --- renderFormFields function (MODIFIED FOR ADDRESS SPLITTING) ---

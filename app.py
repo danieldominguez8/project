@@ -236,14 +236,16 @@ def get_combined_fields():
     """
     data = request.json
     selected_pdf_names = data.get("pdfs", [])
-    filter_mode = data.get("filter_mode", "all") 
+    filter_mode = data.get("filter_mode", "all")
+    num_account_holders = int(data.get("num_account_holders", 4))
+    num_financial_professionals = int(data.get("num_financial_professionals", 4))
 
     if not selected_pdf_names:
-        return jsonify({"error": "No PDFs selected"}), 400
+        return jsonify({"error": "No PDFs selected."}), 400
 
-    combined_fields_ordered_list = [] 
-    combined_fields_lookup = {} 
-    logger.debug(f"Starting combined_fields for: {selected_pdf_names}, Filter: {filter_mode}")
+    combined_fields_ordered_list = []
+    combined_fields_lookup = {}
+    logger.debug(f"Starting combined_fields for: {selected_pdf_names}, Filter: {filter_mode}, AccHolders: {num_account_holders}, FinPros: {num_financial_professionals}")
     for pdf_name in selected_pdf_names:
         if pdf_name in pdf_data:
             for field_detail_original in pdf_data[pdf_name]["fields_details"]:
@@ -272,20 +274,73 @@ def get_combined_fields():
 
     final_fields_to_display = []
     log_msg_prefix = f"PDFs: {len(selected_pdf_names)}, Filter Mode: {filter_mode}"
+    
+    # Initial filter based on filter_mode (common_only or all)
+    pre_filtered_fields = []
     if filter_mode == "common_only":
         logger.info("Applying filter: (Common across >1 file) OR (Repeated Text/Choice in single file).")
         for field_entry in combined_fields_ordered_list:
             is_common_across_files = len(field_entry.get("usedInPdfs", [])) > 1
             field_type = field_entry.get("type", "text")
             widget_count = field_entry.get("max_widget_count_in_one_pdf", 0)
-            is_repeated_data_entry_type = (widget_count > 1) and (field_type in ["text", "choice"]) 
+            is_repeated_data_entry_type = (widget_count > 1) and (field_type in ["text", "choice"])
             if is_common_across_files or is_repeated_data_entry_type:
-                final_fields_to_display.append(field_entry)
+                pre_filtered_fields.append(field_entry)
     else:
-        final_fields_to_display = combined_fields_ordered_list
+        pre_filtered_fields = combined_fields_ordered_list
         logger.info("Applying filter: None ('Show All' selected or <=1 PDF).")
+
+    # Secondary filter based on number of account holders and financial professionals
+    for field_entry in pre_filtered_fields:
+        field_name_lower = field_entry["name"].lower()
+
+        # Account Holder Filtering
+        exclude_secondary_ah_or_current = num_account_holders < 2 and \
+                                          ("secondaryaccountholder" in field_name_lower or \
+                                           "secondarycurrent" in field_name_lower)
+        exclude_tertiary_ah = num_account_holders < 3 and "tertiaryaccountholder" in field_name_lower
+        exclude_quaternary_ah = num_account_holders < 4 and "quaternaryaccountholder" in field_name_lower
+        
+        if exclude_secondary_ah_or_current or exclude_tertiary_ah or exclude_quaternary_ah:
+            logger.debug(f"Excluding field (AH filter): {field_entry['name']} for {num_account_holders} holders")
+            continue
+
+        # Financial Professional Filtering
+        exclude_field = False
+        
+        # If 1 financial professional selected
+        if num_financial_professionals == 1:
+            if ("secondaryfinancial" in field_name_lower or
+                "tertiaryfinancial" in field_name_lower or
+                "quaternaryfinancial" in field_name_lower or
+                "secondaryrepid" in field_name_lower or
+                "tertiaryrepid" in field_name_lower or
+                "quaternaryrepid" in field_name_lower):
+                exclude_field = True
+        
+        # If 2 financial professionals selected
+        elif num_financial_professionals == 2:
+            if ("tertiaryfinancial" in field_name_lower or
+                "quaternaryfinancial" in field_name_lower or
+                "tertiaryrepid" in field_name_lower or
+                "quaternaryrepid" in field_name_lower):
+                exclude_field = True
+        
+        # If 3 financial professionals selected
+        elif num_financial_professionals == 3:
+            if ("quaternaryfinancial" in field_name_lower or
+                "quaternaryrepid" in field_name_lower):
+                exclude_field = True
+        
+        # If 4 financial professionals selected, don't exclude anything
+        
+        if exclude_field:
+            logger.debug(f"Excluding field (FP filter): {field_entry['name']} for {num_financial_professionals} professionals")
+            continue
+            
+        final_fields_to_display.append(field_entry)
     
-    logger.info(f"{log_msg_prefix}. Returning {len(final_fields_to_display)} fields.")
+    logger.info(f"{log_msg_prefix}, AccHolders: {num_account_holders}, FinPros: {num_financial_professionals}. Returning {len(final_fields_to_display)} fields.")
     return jsonify({"fields": final_fields_to_display})
 
 
@@ -314,7 +369,7 @@ def fill_and_export_pdf():
         elif isinstance(acro_form_obj, IndirectObject): 
             resolved_obj = acro_form_obj.get_object()
             if isinstance(resolved_obj, DictionaryObject): acro_form_dict = resolved_obj
-            else: logger.error(f"Resolved /AcroForm not Dict in {pdf_name}: {type(resolved_obj)}."); acro_form_dict = DictionaryObject(); writer._root_object[NameObject("/AcroForm")] = writer.add_object(acro_form_dict)
+            else: logger.error(f"Resolved /AcroForm not Dict in {pdf_name}: {type(resolved_obj)}."); acro_form_dict = DictionaryObject(); writer._root_object[NameObject("/AcroForm")] = acro_form_dict
         elif isinstance(acro_form_obj, DictionaryObject): acro_form_dict = acro_form_obj
         else: logger.error(f"Unexpected /AcroForm type in {pdf_name}: {type(acro_form_obj)}."); acro_form_dict = DictionaryObject(); writer._root_object[NameObject("/AcroForm")] = acro_form_dict
         
